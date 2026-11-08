@@ -1,4 +1,4 @@
-import {strictEqual} from 'assert';
+import {deepStrictEqual, strictEqual} from 'assert';
 import '../../../dom/node-parser';
 import {CanvasRenderer} from '../canvas-renderer';
 import {Context} from '../../../core/context';
@@ -24,7 +24,7 @@ const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     return {canvas, fonts};
 };
 
-const createRenderer = (canvas: HTMLCanvasElement): {context: Context; renderer: CanvasRenderer} => {
+const createRenderer = (canvas: HTMLCanvasElement, scale = 1): {context: Context; renderer: CanvasRenderer} => {
     const context = new Context(
         {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false},
         new Bounds(0, 0, 800, 600)
@@ -32,7 +32,7 @@ const createRenderer = (canvas: HTMLCanvasElement): {context: Context; renderer:
     const renderer = new CanvasRenderer(context, {
         canvas,
         backgroundColor: null,
-        scale: 1,
+        scale,
         x: 0,
         y: 0,
         width: 800,
@@ -143,5 +143,39 @@ describe('CanvasRenderer', () => {
         strictEqual(source.width, 100);
         strictEqual(source.height, 100);
         strictEqual(drawImage.mock.calls[0][0], image);
+    });
+
+    it('renders background image patterns at the canvas scale', async () => {
+        mockComputedStyle({backgroundImage: 'url(image.png)', backgroundSize: '50px 25px'});
+
+        const {canvas} = createMockCanvas();
+        const {context, renderer} = createRenderer(canvas, 2);
+        const container = new ElementContainer(context, document.createElement('div'));
+        container.bounds = new Bounds(0, 0, 100, 100);
+        const image = {width: 200, height: 100};
+        jest.spyOn(context.cache, 'match').mockResolvedValue(image);
+        const drawImage = jest.fn();
+        const getContext = jest
+            .spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockReturnValue({drawImage} as unknown as CanvasRenderingContext2D);
+        const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+        const calls: string[] = [];
+        const createPattern = jest.fn();
+        ctx.createPattern = createPattern;
+        ['save', 'restore', 'translate', 'scale', 'fill'].forEach((method) => {
+            ctx[method] = (...args: number[]) => calls.push(`${method}(${args.join(',')})`);
+        });
+
+        try {
+            await renderer.renderBackgroundImage(container);
+        } finally {
+            getContext.mockRestore();
+        }
+
+        const source = (createPattern.mock.calls[0] as unknown[])[0] as HTMLCanvasElement;
+        strictEqual(source.width, 100);
+        strictEqual(source.height, 50);
+        deepStrictEqual(Array.from(drawImage.mock.calls[0]), [image, 0, 0, 200, 100, 0, 0, 100, 50]);
+        deepStrictEqual(calls, ['save()', 'translate(0,0)', 'scale(0.5,0.5)', 'fill()', 'restore()']);
     });
 });

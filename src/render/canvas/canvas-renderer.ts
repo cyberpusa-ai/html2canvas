@@ -599,11 +599,20 @@ export class CanvasRenderer extends Renderer {
                         image.width / image.height
                     ]);
                     if (width > 0 && height > 0) {
+                        // resize at the canvas scale and draw the pattern scaled back down, so scale > 1
+                        // doesn't upscale a CSS pixel sized tile and blur it
+                        const scale = this.options.scale;
                         const pattern = this.ctx.createPattern(
-                            this.resizeImage(image, width, height),
+                            this.resizeImage(image, width * scale, height * scale),
                             'repeat'
                         ) as CanvasPattern;
-                        this.renderRepeat(path, pattern, x, y);
+                        this.path(path);
+                        this.ctx.fillStyle = pattern;
+                        this.ctx.save();
+                        this.ctx.translate(x, y);
+                        this.ctx.scale(1 / scale, 1 / scale);
+                        this.ctx.fill();
+                        this.ctx.restore();
                     }
                 }
             } else if (isLinearGradient(backgroundImage)) {

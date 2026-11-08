@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Background images keep their resolution with scale 2</title>
+		<script type="text/javascript">
+			var h2cOptions = {scale: 2};
+		</script>
+		<script type="text/javascript" src="../../test.js"></script>
+
+		<style>
+			body {
+				background-color: blanchedalmond;
+			}
+
+			div {
+				display: inline-block;
+				width: 200px;
+				height: 200px;
+				border: 5px solid green;
+				background-image: url(../../assets/image.jpg);
+			}
+		</style>
+	</head>
+	<body>
+		<div style="background-size: 100px 100px;"></div>
+		<div style="background-size: contain; background-repeat: no-repeat;"></div>
+		<div style="background-image: url(../../assets/image.svg); background-size: 50px 50px;"></div>
+		<div style="background-size: 60px 40px; transform: rotate(15deg);"></div>
+	</body>
+</html>
