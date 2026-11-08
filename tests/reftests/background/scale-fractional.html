@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Background images at scale 1.5</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script>
+        h2cOptions = {
+            scale: 1.5
+        };
+    </script>
+    <script type="text/javascript" src="../../test.js"></script>
+    <style>
+        body {
+            background-color: blanchedalmond;
+        }
+
+        div {
+            display: inline-block;
+            width: 200px;
+            height: 200px;
+            margin: 5px;
+            border: 5px solid green;
+            background-image: url(../../assets/image.jpg);
+        }
+    </style>
+</head>
+<body>
+    <div style="background-size: 33px 33px;"></div>
+    <div style="background-size: 75px 50px; background-position: 7px 3px;"></div>
+    <div style="background-size: cover; background-repeat: no-repeat;"></div>
+    <div style="background-image: url(../../assets/image.svg); background-size: 41px;"></div>
+</body>
+</html>

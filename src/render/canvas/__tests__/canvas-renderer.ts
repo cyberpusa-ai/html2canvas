@@ -1,4 +1,4 @@
-import {strictEqual} from 'assert';
+import {deepStrictEqual, strictEqual} from 'assert';
 import '../../../dom/node-parser';
 import {CanvasRenderer} from '../canvas-renderer';
 import {Context} from '../../../core/context';
@@ -24,7 +24,7 @@ const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     return {canvas, fonts};
 };
 
-const createRenderer = (canvas: HTMLCanvasElement): {context: Context; renderer: CanvasRenderer} => {
+const createRenderer = (canvas: HTMLCanvasElement, scale = 1): {context: Context; renderer: CanvasRenderer} => {
     const context = new Context(
         {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false},
         new Bounds(0, 0, 800, 600)
@@ -32,7 +32,7 @@ const createRenderer = (canvas: HTMLCanvasElement): {context: Context; renderer:
     const renderer = new CanvasRenderer(context, {
         canvas,
         backgroundColor: null,
-        scale: 1,
+        scale,
         x: 0,
         y: 0,
         width: 800,
@@ -143,5 +143,69 @@ describe('CanvasRenderer', () => {
         strictEqual(source.width, 100);
         strictEqual(source.height, 100);
         strictEqual(drawImage.mock.calls[0][0], image);
+    });
+
+    describe('background image resolution', () => {
+        const renderAtScale = async (scale: number, size: number) => {
+            mockComputedStyle({backgroundImage: 'url(image.png)', backgroundSize: `${size}px ${size}px`});
+
+            const {canvas} = createMockCanvas();
+            const {context, renderer} = createRenderer(canvas, scale);
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(0, 0, 100, 100);
+            jest.spyOn(context.cache, 'match').mockResolvedValue({width: 400, height: 400});
+            const drawImage = jest.fn();
+            const getContext = jest
+                .spyOn(HTMLCanvasElement.prototype, 'getContext')
+                .mockReturnValue({drawImage} as unknown as CanvasRenderingContext2D);
+            const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+            const calls: [string, number[]][] = [];
+            ['translate', 'scale', 'fill'].forEach((name) => {
+                ctx[name] = (...args: number[]) => calls.push([name, args]);
+            });
+            const createPattern = jest.fn();
+            ctx.createPattern = createPattern;
+
+            try {
+                await renderer.renderBackgroundImage(container);
+            } finally {
+                getContext.mockRestore();
+            }
+
+            strictEqual(createPattern.mock.calls.length, 1);
+            const tile = (createPattern.mock.calls[0] as unknown[])[0] as HTMLCanvasElement;
+            const fillIndex = calls.findIndex(([name]) => name === 'fill');
+            const scaleCall = calls.slice(0, fillIndex).find(([name]) => name === 'scale');
+            return {tile, drawImage, fillScale: scaleCall ? scaleCall[1] : [1, 1]};
+        };
+
+        it('draws the tile at the canvas scale instead of CSS pixels', async () => {
+            const {tile, drawImage, fillScale} = await renderAtScale(2, 50);
+
+            strictEqual(tile.width, 100);
+            strictEqual(tile.height, 100);
+            strictEqual(drawImage.mock.calls[0].slice(5).join(', '), '0, 0, 100, 100');
+            deepStrictEqual(fillScale, [0.5, 0.5]);
+        });
+
+        it('rounds the tile at fractional scales and fills by the real ratio so tiles keep their CSS size', async () => {
+            // 33 * 1.5 = 49.5 device pixels; canvas sizes are integers
+            const {tile, drawImage, fillScale} = await renderAtScale(1.5, 33);
+
+            strictEqual(tile.width, 50);
+            strictEqual(tile.height, 50);
+            strictEqual(drawImage.mock.calls[0].slice(5).join(', '), '0, 0, 50, 50');
+            // one tile must span exactly 33 CSS px: 50 * (33 / 50)
+            deepStrictEqual(fillScale, [33 / 50, 33 / 50]);
+            strictEqual(tile.width * fillScale[0], 33);
+        });
+
+        it('does not change the tile at scale 1', async () => {
+            const {tile, fillScale} = await renderAtScale(1, 33);
+
+            strictEqual(tile.width, 33);
+            strictEqual(tile.height, 33);
+            deepStrictEqual(fillScale, [1, 1]);
+        });
     });
 });

@@ -560,12 +560,23 @@ export class CanvasRenderer extends Renderer {
         });
     }
 
-    renderRepeat(path: Path[], pattern: CanvasPattern | CanvasGradient, offsetX: number, offsetY: number): void {
+    renderRepeat(
+        path: Path[],
+        pattern: CanvasPattern | CanvasGradient,
+        offsetX: number,
+        offsetY: number,
+        scaleX = 1,
+        scaleY = 1
+    ): void {
         this.path(path);
         this.ctx.fillStyle = pattern;
+        this.ctx.save();
         this.ctx.translate(offsetX, offsetY);
+        if (scaleX !== 1 || scaleY !== 1) {
+            this.ctx.scale(scaleX, scaleY);
+        }
         this.ctx.fill();
-        this.ctx.translate(-offsetX, -offsetY);
+        this.ctx.restore();
     }
 
     resizeImage(image: HTMLImageElement, width: number, height: number): HTMLCanvasElement {
@@ -599,11 +610,16 @@ export class CanvasRenderer extends Renderer {
                         image.width / image.height
                     ]);
                     if (width > 0 && height > 0) {
+                        // Draw the tile at the output resolution instead of CSS pixels, so it isn't
+                        // downscaled and then upscaled (blurry) when scale > 1. Canvas sizes are integers,
+                        // so round the tile and fill by its real ratio to keep each tile width x height CSS px.
+                        const tileWidth = Math.max(1, Math.round(width * this.options.scale));
+                        const tileHeight = Math.max(1, Math.round(height * this.options.scale));
                         const pattern = this.ctx.createPattern(
-                            this.resizeImage(image, width, height),
+                            this.resizeImage(image, tileWidth, tileHeight),
                             'repeat'
                         ) as CanvasPattern;
-                        this.renderRepeat(path, pattern, x, y);
+                        this.renderRepeat(path, pattern, x, y, width / tileWidth, height / tileHeight);
                     }
                 }
             } else if (isLinearGradient(backgroundImage)) {
