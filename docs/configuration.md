@@ -15,7 +15,7 @@ These are all of the available configuration options.
 | backgroundColor | `#ffffff` | Canvas background color, if none is specified in DOM. Set `null` for transparent
 | canvas | `null` | Existing `canvas` element to use as a base for drawing on
 | foreignObjectRendering | `false` | Whether to use ForeignObject rendering if the browser supports it
-| imageTimeout | `15000` | Timeout for loading an image (in milliseconds). Set to `0` to disable timeout.
+| imageTimeout | `15000` | Timeout for loading an image, and for waiting on web fonts in the cloned document (in milliseconds). Set to `0` to disable timeout.
 | ignoreElements | `(element) => false` | Predicate function which removes the matching elements from the render.
 | logging | `true` | Enable logging for debug purposes
 | onclone | `null` | Callback function which is called when the Document has been cloned for rendering, can be used to modify the contents that will be rendered without affecting the original source document.
