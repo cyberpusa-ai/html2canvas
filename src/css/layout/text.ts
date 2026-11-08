@@ -156,3 +156,57 @@ const breakWords = (str: string, styles: CSSParsedDeclaration): string[] => {
 
     return words;
 };
+
+// Trailing spaces hang at the end of a line (white-space: pre-wrap), so they never cause a wrap
+const stripTrailingSpaces = (value: string): string => value.replace(/ +$/, '');
+
+export const breakTextareaLines = (
+    value: string,
+    width: number,
+    measure: (text: string) => number,
+    styles: CSSParsedDeclaration
+): string[] => {
+    const lines: string[] = [];
+    const fits = (text: string): boolean => measure(stripTrailingSpaces(text)) <= width;
+
+    value.split(/\r\n|\r|\n/).forEach((paragraph) => {
+        const breaker = LineBreaker(paragraph, {
+            lineBreak: styles.lineBreak,
+            wordBreak: styles.wordBreak
+        });
+        let line = '';
+        let bk;
+
+        while (!(bk = breaker.next()).done) {
+            if (!bk.value) {
+                continue;
+            }
+            const segment = bk.value.slice();
+            if (line.length && fits(line + segment)) {
+                line += segment;
+                continue;
+            }
+            if (line.length) {
+                lines.push(stripTrailingSpaces(line));
+                line = '';
+            }
+            if (fits(segment)) {
+                line = segment;
+                continue;
+            }
+            // a single word wider than the textarea is broken between graphemes
+            segmentGraphemes(segment).forEach((grapheme) => {
+                if (line.length && grapheme !== ' ' && !fits(line + grapheme)) {
+                    lines.push(stripTrailingSpaces(line));
+                    line = grapheme;
+                } else {
+                    line += grapheme;
+                }
+            });
+        }
+
+        lines.push(stripTrailingSpaces(line));
+    });
+
+    return lines;
+};
