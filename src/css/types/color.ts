@@ -1,7 +1,7 @@
-import {CSSValue, nonFunctionArgSeparator, Parser} from '../syntax/parser';
+import {CSSValue, isIdentWithValue, nonFunctionArgSeparator, Parser} from '../syntax/parser';
 import {TokenType} from '../syntax/tokenizer';
 import {ITypeDescriptor} from '../ITypeDescriptor';
-import {angle, deg} from './angle';
+import {angle, deg, isAngle} from './angle';
 import {getAbsoluteValue, isLengthPercentage} from './length-percentage';
 import {Context} from '../../core/context';
 export type Color = number;
@@ -188,6 +188,108 @@ const colorFunction = (context: Context, args: CSSValue[]): number => {
     return pack(r, g, b, a);
 };
 
+// lab(), lch(), oklab() and oklch(), see https://www.w3.org/TR/css-color-4/#lab-colors
+// Matrices are from the CSS Color 4 sample code. Out of gamut colors are clamped per channel.
+type Matrix = [number, number, number][];
+
+const multiplyMatrix = (m: Matrix, [x, y, z]: number[]): number[] => m.map(([a, b, c]) => a * x + b * y + c * z);
+
+const D50_TO_D65: Matrix = [
+    [0.955473421488075, -0.02309845494876471, 0.06325924320057072],
+    [-0.0283697093338637, 1.0099953980813041, 0.021041441191917323],
+    [0.012314014864481998, -0.020507649298898964, 1.330365926242124]
+];
+
+const XYZ_D65_TO_LINEAR_SRGB: Matrix = [
+    [3.2409699419045226, -1.537383177570094, -0.4986107602930034],
+    [-0.9692436362808796, 1.8759675015077202, 0.04155505740717559],
+    [0.05563007969699366, -0.20397695888897652, 1.0569715142428786]
+];
+
+const OKLAB_TO_LMS: Matrix = [
+    [1, 0.3963377773761749, 0.2158037573099136],
+    [1, -0.1055613458156586, -0.0638541728258133],
+    [1, -0.0894841775298119, -1.2914855480194092]
+];
+
+const LMS_TO_LINEAR_SRGB: Matrix = [
+    [4.0767416360759583, -3.3077115392580629, 0.2309699031821043],
+    [-1.2684379732850315, 2.6097573492876882, -0.341319376002657],
+    [-0.0041960761386756, -0.7034186179359363, 1.7076146940746117]
+];
+
+const D50_WHITE = [0.3457 / 0.3585, 1, (1 - 0.3457 - 0.3585) / 0.3585];
+const LAB_KAPPA = 24389 / 27;
+const LAB_EPSILON = 216 / 24389;
+
+const labToLinearSrgb = ([l, a, b]: number[]): number[] => {
+    const f1 = (l + 16) / 116;
+    const f0 = a / 500 + f1;
+    const f2 = f1 - b / 200;
+    const xyz = [
+        Math.pow(f0, 3) > LAB_EPSILON ? Math.pow(f0, 3) : (116 * f0 - 16) / LAB_KAPPA,
+        l > LAB_KAPPA * LAB_EPSILON ? Math.pow(f1, 3) : l / LAB_KAPPA,
+        Math.pow(f2, 3) > LAB_EPSILON ? Math.pow(f2, 3) : (116 * f2 - 16) / LAB_KAPPA
+    ].map((value, i) => value * D50_WHITE[i]);
+    return multiplyMatrix(XYZ_D65_TO_LINEAR_SRGB, multiplyMatrix(D50_TO_D65, xyz));
+};
+
+const oklabToLinearSrgb = (lab: number[]): number[] =>
+    multiplyMatrix(
+        LMS_TO_LINEAR_SRGB,
+        multiplyMatrix(OKLAB_TO_LMS, lab).map((value) => Math.pow(value, 3))
+    );
+
+const polarToRectangular = ([l, c, h]: number[]): number[] => [l, c * Math.cos(h), c * Math.sin(h)];
+
+// percentage reference ranges per component, 'hue' marks a hue component (converted to radians)
+type LabComponents = [number, number, number | 'hue'];
+
+const createLabFunction =
+    (components: LabComponents, toLab: (values: number[]) => number[], toLinearSrgb: (lab: number[]) => number[]) =>
+    (context: Context, args: CSSValue[]): number => {
+        const tokens = args.filter(nonFunctionArgSeparator);
+        const [c1, c2, c3, separator, alpha] = tokens;
+        const hasAlpha = tokens.length === 5 && separator.type === TokenType.DELIM_TOKEN && separator.value === '/';
+
+        if (tokens.length !== 3 && !hasAlpha) {
+            context.logger.warn(`Attempting to parse an unsupported color function value`);
+            return COLORS.TRANSPARENT;
+        }
+
+        const values: number[] = [];
+        for (let i = 0; i < 3; i++) {
+            const token = [c1, c2, c3][i];
+            const range = components[i];
+            if (isIdentWithValue(token, 'none')) {
+                values.push(0);
+            } else if (token.type === TokenType.NUMBER_TOKEN) {
+                values.push(range === 'hue' ? deg(token.number) : token.number);
+            } else if (token.type === TokenType.PERCENTAGE_TOKEN && range !== 'hue') {
+                values.push((token.number / 100) * range);
+            } else if (range === 'hue' && isAngle(token)) {
+                values.push(angle.parse(context, token));
+            } else {
+                context.logger.warn(`Attempting to parse an unsupported color function value`);
+                return COLORS.TRANSPARENT;
+            }
+        }
+
+        const [r, g, b] = toLinearSrgb(toLab(values)).map((value) =>
+            Math.round(linearToSrgb(clamp(value, 0, 1)) * 255)
+        );
+        const a = hasAlpha ? (isIdentWithValue(alpha, 'none') ? 0 : clamp(getColorSpaceValue(alpha), 0, 1)) : 1;
+
+        return pack(r, g, b, a);
+    };
+
+const identity = (values: number[]): number[] => values;
+
+const lab = createLabFunction([100, 125, 125], identity, labToLinearSrgb);
+const lch = createLabFunction([100, 150, 'hue'], polarToRectangular, labToLinearSrgb);
+const oklab = createLabFunction([1, 0.4, 0.4], identity, oklabToLinearSrgb);
+const oklch = createLabFunction([1, 0.4, 'hue'], polarToRectangular, oklabToLinearSrgb);
+
 const SUPPORTED_COLOR_FUNCTIONS: {
     [key: string]: (context: Context, args: CSSValue[]) => number;
 } = {
@@ -195,7 +297,11 @@ const SUPPORTED_COLOR_FUNCTIONS: {
     hsla: hsl,
     rgb: rgb,
     rgba: rgb,
-    color: colorFunction
+    color: colorFunction,
+    lab: lab,
+    lch: lch,
+    oklab: oklab,
+    oklch: oklch
 };
 
 export const parseColor = (context: Context, value: string): Color =>
