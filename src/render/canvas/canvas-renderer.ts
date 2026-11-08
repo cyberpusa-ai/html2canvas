@@ -144,9 +144,14 @@ export class CanvasRenderer extends Renderer {
         }
     }
 
-    renderTextWithLetterSpacing(text: TextBounds, letterSpacing: number, baseline: number): void {
+    renderTextWithLetterSpacing(
+        text: TextBounds,
+        letterSpacing: number,
+        baseline: number,
+        direction: DIRECTION = DIRECTION.LTR
+    ): void {
         if (letterSpacing === 0) {
-            this.ctx.fillText(text.text, text.bounds.left, text.bounds.top + baseline);
+            this.ctx.fillText(applyTextDirection(text.text, direction), text.bounds.left, text.bounds.top + baseline);
         } else {
             const letters = segmentGraphemes(text.text);
             letters.reduce((left, letter) => {
@@ -227,7 +232,7 @@ export class CanvasRenderer extends Renderer {
                 switch (paintOrderLayer) {
                     case PAINT_ORDER_LAYER.FILL:
                         this.ctx.fillStyle = asString(styles.color);
-                        this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline);
+                        this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline, styles.direction);
                         const textShadows: TextShadow = styles.textShadow;
 
                         if (textShadows.length && text.text.trim().length) {
@@ -240,7 +245,7 @@ export class CanvasRenderer extends Renderer {
                                     this.ctx.shadowOffsetY = textShadow.offsetY.number * this.options.scale;
                                     this.ctx.shadowBlur = textShadow.blur.number;
 
-                                    this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline);
+                                    this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline, styles.direction);
                                 });
 
                             this.ctx.shadowColor = '';
@@ -292,7 +297,11 @@ export class CanvasRenderer extends Renderer {
                             this.ctx.lineWidth = styles.webkitTextStrokeWidth;
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             this.ctx.lineJoin = !!(window as any).chrome ? 'miter' : 'round';
-                            this.ctx.strokeText(text.text, text.bounds.left, text.bounds.top + baseline);
+                            this.ctx.strokeText(
+                                applyTextDirection(text.text, styles.direction),
+                                text.bounds.left,
+                                text.bounds.top + baseline
+                            );
                         }
                         this.ctx.strokeStyle = '';
                         this.ctx.lineWidth = 0;
@@ -1007,6 +1016,11 @@ const canvasTextAlign = (textAlign: TEXT_ALIGN): CanvasTextAlign => {
 
 // see https://github.com/niklasvh/html2canvas/pull/2645
 const iOSBrokenFonts = ['-apple-system', 'system-ui'];
+
+// ctx.direction is ignored by some browsers (Firefox < 101), which then draw rtl text with an ltr base direction
+// and move punctuation at its edges to the wrong side. Right-to-left marks give it an rtl base direction anyway.
+const applyTextDirection = (text: string, direction: DIRECTION): string =>
+    direction === DIRECTION.RTL ? `\u200F${text}\u200F` : text;
 
 const fixIOSSystemFonts = (fontFamilies: string[]): string[] => {
     return /iPhone OS 15_(0|1)/.test(window.navigator.userAgent)
