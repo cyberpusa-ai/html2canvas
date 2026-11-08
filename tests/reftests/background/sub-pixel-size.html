@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Sub-pixel background sizes</title>
+		<script type="text/javascript" src="../../test.js"></script>
+
+		<style>
+			body {
+				background-color: blanchedalmond;
+			}
+
+			div {
+				display: inline-block;
+				width: 100px;
+				height: 100px;
+				border: 5px solid green;
+				background-size: 0.4px;
+			}
+		</style>
+	</head>
+	<body>
+		<div style="background-image: linear-gradient(90deg, blue, red);"></div>
+		<div style="background-image: linear-gradient(0deg, blue, red); background-size: 0.4px 0.4px;"></div>
+		<div style="background-image: linear-gradient(90deg, blue, red); background-size: 100% 0.5px;"></div>
+		<div style="background-image: url(../../assets/image.jpg);"></div>
+		<div style="background-image: url(../../assets/image.jpg); background-size: 50px 0.4px;"></div>
+	</body>
+</html>

@@ -95,4 +95,22 @@ describe('CanvasRenderer', () => {
 
         strictEqual(fonts[fonts.length - 1], 'normal small-caps 400 20px Arial');
     });
+
+    it('skips background images whose rendered size is zero', async () => {
+        mockComputedStyle({backgroundImage: 'url(empty.svg)'});
+
+        const {canvas} = createMockCanvas();
+        const {context, renderer} = createRenderer(canvas);
+        const container = new ElementContainer(context, document.createElement('div'));
+        container.bounds = new Bounds(0, 0, 100, 100);
+        jest.spyOn(context.cache, 'match').mockResolvedValue({width: 0, height: 0});
+        const createPattern = jest.fn(() => {
+            throw new Error('InvalidStateError');
+        });
+        (canvas.getContext('2d') as unknown as {[key: string]: unknown}).createPattern = createPattern;
+
+        await renderer.renderBackgroundImage(container);
+
+        strictEqual(createPattern.mock.calls.length, 0);
+    });
 });
