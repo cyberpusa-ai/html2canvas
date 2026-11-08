@@ -12,7 +12,8 @@ export const color: ITypeDescriptor<Color> = {
         if (value.type === TokenType.FUNCTION) {
             const colorFunction = SUPPORTED_COLOR_FUNCTIONS[value.name];
             if (typeof colorFunction === 'undefined') {
-                throw new Error(`Attempting to parse an unsupported color function "${value.name}"`);
+                context.logger.warn(`Attempting to parse an unsupported color function "${value.name}"`);
+                return COLORS.TRANSPARENT;
             }
             return colorFunction(context, value.values);
         }
@@ -143,13 +144,58 @@ const hsl = (context: Context, args: CSSValue[]): number => {
     return pack(r * 255, g * 255, b * 255, a);
 };
 
+const getColorSpaceValue = (token: CSSValue): number => {
+    if (token.type === TokenType.NUMBER_TOKEN) {
+        return token.number;
+    }
+
+    if (token.type === TokenType.PERCENTAGE_TOKEN) {
+        return token.number / 100;
+    }
+
+    return 0;
+};
+
+const linearToSrgb = (value: number): number =>
+    value <= 0.0031308 ? value * 12.92 : 1.055 * Math.pow(value, 1 / 2.4) - 0.055;
+
+const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+
+// color(<colorspace> c1 c2 c3 [/ alpha]), see https://www.w3.org/TR/css-color-4/#color-function
+// Wide-gamut RGB spaces are approximated as sRGB rather than converted.
+const RGB_COLOR_SPACES = ['srgb', 'srgb-linear', 'display-p3', 'a98-rgb', 'prophoto-rgb', 'rec2020'];
+
+const colorFunction = (context: Context, args: CSSValue[]): number => {
+    const tokens = args.filter(nonFunctionArgSeparator);
+    const [colorSpace, c1, c2, c3, separator, alpha] = tokens;
+
+    if (
+        tokens.length < 4 ||
+        colorSpace.type !== TokenType.IDENT_TOKEN ||
+        RGB_COLOR_SPACES.indexOf(colorSpace.value.toLowerCase()) === -1
+    ) {
+        context.logger.warn(`Attempting to parse an unsupported color function value`);
+        return COLORS.TRANSPARENT;
+    }
+
+    const toSrgb = colorSpace.value.toLowerCase() === 'srgb-linear' ? linearToSrgb : (value: number) => value;
+    const [r, g, b] = [c1, c2, c3].map((token) => Math.round(clamp(toSrgb(getColorSpaceValue(token)), 0, 1) * 255));
+    const a =
+        tokens.length === 6 && separator.type === TokenType.DELIM_TOKEN && separator.value === '/'
+            ? clamp(getColorSpaceValue(alpha), 0, 1)
+            : 1;
+
+    return pack(r, g, b, a);
+};
+
 const SUPPORTED_COLOR_FUNCTIONS: {
     [key: string]: (context: Context, args: CSSValue[]) => number;
 } = {
     hsl: hsl,
     hsla: hsl,
     rgb: rgb,
-    rgba: rgb
+    rgba: rgb,
+    color: colorFunction
 };
 
 export const parseColor = (context: Context, value: string): Color =>

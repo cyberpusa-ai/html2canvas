@@ -2,8 +2,10 @@ import {strictEqual} from 'assert';
 import {asString, color, isTransparent, pack} from '../color';
 import {Parser} from '../../syntax/parser';
 import {Context} from '../../../core/context';
+import {Logger} from '../../../core/logger';
 
-const parse = (value: string) => color.parse({} as Context, Parser.parseValue(value));
+const logger = new Logger({id: 'test', enabled: false});
+const parse = (value: string) => color.parse({logger} as Context, Parser.parseValue(value));
 
 describe('types', () => {
     describe('<color>', () => {
@@ -40,6 +42,42 @@ describe('types', () => {
             it('hsl(.75turn, 60%, 70%)', () => strictEqual(parse('hsl(.75turn, 60%, 70%)'), parse('rgb(178,132,224)')));
             it('hsla(.75turn, 60%, 70%, 50%)', () =>
                 strictEqual(parse('hsl(.75turn, 60%, 70%, 50%)'), parse('rgba(178,132,224, 0.5)')));
+            it('color(srgb 0 0 0)', () => strictEqual(parse('color(srgb 0 0 0)'), pack(0, 0, 0, 1)));
+            it('color(srgb 1 1 1)', () => strictEqual(parse('color(srgb 1 1 1)'), pack(255, 255, 255, 1)));
+            it('color(srgb 0.5 0.5 0.5)', () => strictEqual(parse('color(srgb 0.5 0.5 0.5)'), pack(128, 128, 128, 1)));
+            it('color(srgb 1 0.5 0)', () => strictEqual(parse('color(srgb 1 0.5 0)'), pack(255, 128, 0, 1)));
+            it('color(srgb 0 0 0 / 0.5)', () => strictEqual(parse('color(srgb 0 0 0 / 0.5)'), pack(0, 0, 0, 0.5)));
+            it('color(srgb 0 0 0 / 0.85)', () => strictEqual(parse('color(srgb 0 0 0 / 0.85)'), pack(0, 0, 0, 0.85)));
+            it('color(srgb 100% 0% 50%)', () => strictEqual(parse('color(srgb 100% 0% 50%)'), pack(255, 0, 128, 1)));
+            it('color(srgb 50% 50% 50% / 25%)', () =>
+                strictEqual(parse('color(srgb 50% 50% 50% / 25%)'), pack(128, 128, 128, 0.25)));
+            it('color(SRGB 1 0 0)', () => strictEqual(parse('color(SRGB 1 0 0)'), pack(255, 0, 0, 1)));
+            it('color(srgb 2 -1 0 / 3)', () => strictEqual(parse('color(srgb 2 -1 0 / 3)'), pack(255, 0, 0, 1)));
+            it('color(srgb-linear 0.2 0 1)', () =>
+                strictEqual(parse('color(srgb-linear 0.2 0 1)'), pack(124, 0, 255, 1)));
+            it('color(display-p3 1 0 0)', () => strictEqual(parse('color(display-p3 1 0 0)'), pack(255, 0, 0, 1)));
+        });
+        describe('unsupported values', () => {
+            const parseWithWarn = (value: string) => {
+                const warn = jest.fn();
+                const result = color.parse({logger: {warn}} as unknown as Context, Parser.parseValue(value));
+                return {result, warnings: warn.mock.calls.length};
+            };
+            it('unknown color function', () => {
+                const {result, warnings} = parseWithWarn('foo(1 2 3)');
+                strictEqual(result, pack(0, 0, 0, 0));
+                strictEqual(warnings, 1);
+            });
+            it('color(xyz 1 1 1)', () => {
+                const {result, warnings} = parseWithWarn('color(xyz 1 1 1)');
+                strictEqual(result, pack(0, 0, 0, 0));
+                strictEqual(warnings, 1);
+            });
+            it('color(srgb 1)', () => {
+                const {result, warnings} = parseWithWarn('color(srgb 1)');
+                strictEqual(result, pack(0, 0, 0, 0));
+                strictEqual(warnings, 1);
+            });
         });
         describe('util', () => {
             describe('isTransparent', () => {
