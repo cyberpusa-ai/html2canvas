@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Input text font metrics</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="../../test.js"></script>
+        <style>
+            body, html {
+                margin: 0;
+            }
+            input, textarea, select {
+                display: block;
+                margin: 10px;
+                padding: 4px;
+                border: 2px solid #000;
+                width: 300px;
+                background-color: #fff;
+                color: #000;
+            }
+            .small {
+                font-family: Arial;
+                font-size: 12px;
+                height: 20px;
+            }
+            .large {
+                font-family: "Times New Roman", serif;
+                font-size: 32px;
+                font-weight: bold;
+                height: 48px;
+            }
+            .monospace {
+                font-family: monospace;
+                font-size: 24px;
+                font-style: italic;
+                height: 36px;
+            }
+        </style>
+    </head>
+    <body>
+        <input type="text" class="small" value="Small Arial text" />
+        <input type="text" class="large" value="Large bold serif text" />
+        <input type="text" class="monospace" value="Italic monospace text" />
+        <textarea class="large">Textarea text</textarea>
+        <select class="monospace">
+            <option value="1">Select text</option>
+        </select>
+        <ul>
+            <li class="large">Large list marker</li>
+        </ul>
+    </body>
+</html>
