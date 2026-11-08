@@ -83,7 +83,9 @@ export const calculateBackgroundRendering = (
 
 export const isAuto = (token: CSSValue): boolean => isIdentToken(token) && token.value === BACKGROUND_SIZE.AUTO;
 
-const hasIntrinsicValue = (value: number | null): value is number => typeof value === 'number';
+// image sizes of 0 (e.g. SVGs without width/height in Firefox) give NaN or Infinity proportions, treat them as missing
+const hasIntrinsicValue = (value: number | null): value is number =>
+    typeof value === 'number' && value > 0 && isFinite(value);
 
 export const calculateBackgroundSize = (
     size: BackgroundSizeInfo[],

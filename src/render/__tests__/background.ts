@@ -19,7 +19,10 @@ const createContainer = (style: {[key: string]: string}): ElementContainer => {
     return container;
 };
 
-const backgroundSize = (style: {[key: string]: string}, intrinsicSize: [number | null, number | null, number | null]) => {
+const backgroundSize = (
+    style: {[key: string]: string},
+    intrinsicSize: [number | null, number | null, number | null]
+) => {
     const [, , , width, height] = calculateBackgroundRendering(createContainer(style), 0, intrinsicSize);
     return [width, height];
 };
@@ -34,11 +37,20 @@ describe('calculateBackgroundRendering', () => {
     it('keeps zero background sizes at zero', () => {
         deepStrictEqual(backgroundSize({backgroundSize: '0 100%'}, [null, null, null]), [0, 100]);
         deepStrictEqual(backgroundSize({backgroundSize: '100% 0'}, [null, null, null]), [100, 0]);
-        deepStrictEqual(backgroundSize({backgroundSize: 'auto'}, [0, 0, NaN]), [0, 0]);
     });
 
     it('keeps sizes of 1px and above unchanged', () => {
         deepStrictEqual(backgroundSize({backgroundSize: '1px 2.5px'}, [null, null, null]), [1, 2.5]);
         deepStrictEqual(backgroundSize({backgroundSize: 'auto'}, [20, 10, 2]), [20, 10]);
+    });
+
+    it('treats zero or non-finite intrinsic sizes as missing', () => {
+        // e.g. Firefox reports 0x0 for SVG images without width/height, giving a NaN or Infinity proportion
+        deepStrictEqual(backgroundSize({backgroundSize: 'auto'}, [0, 0, NaN]), [100, 100]);
+        deepStrictEqual(backgroundSize({backgroundSize: 'auto'}, [20, 0, Infinity]), [20, 100]);
+        deepStrictEqual(backgroundSize({backgroundSize: 'cover'}, [0, 0, NaN]), [100, 100]);
+        deepStrictEqual(backgroundSize({backgroundSize: 'contain'}, [20, 0, Infinity]), [100, 100]);
+        deepStrictEqual(backgroundSize({backgroundSize: '50px'}, [0, 0, NaN]), [50, 100]);
+        deepStrictEqual(backgroundSize({backgroundSize: 'auto 50px'}, [0, 0, NaN]), [100, 50]);
     });
 });
