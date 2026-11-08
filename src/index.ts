@@ -46,7 +46,8 @@ const renderElement = async (element: HTMLElement, opts: Partial<Options>): Prom
         allowTaint: opts.allowTaint ?? false,
         imageTimeout: opts.imageTimeout ?? 15000,
         proxy: opts.proxy,
-        useCORS: opts.useCORS ?? false
+        useCORS: opts.useCORS ?? false,
+        useCORSCacheBust: opts.useCORSCacheBust ?? false
     };
 
     const contextOptions = {

@@ -58,6 +58,7 @@ class ImageMock {
     src?: string;
     crossOrigin?: string;
     onload?: () => void;
+    onerror?: (e: unknown) => void;
     constructor() {
         images.push(this);
     }
@@ -210,6 +211,81 @@ describe('cache-storage', () => {
             deepStrictEqual(images.length, 1);
             deepStrictEqual(images[0].src, 'http://html2canvas.hertzen.com/test.jpg');
             deepStrictEqual(images[0].crossOrigin, 'anonymous');
+        });
+
+        it('addImage should not retry failed cors images by default', async () => {
+            const {cache} = createMockContext('http://example.com', {useCORS: true});
+            await cache.addImage('http://html2canvas.hertzen.com/test.jpg');
+            deepStrictEqual(images.length, 1);
+            if (images[0].onerror) {
+                images[0].onerror('cors error');
+            }
+            try {
+                await cache.match('http://html2canvas.hertzen.com/test.jpg');
+                fail('Expected image to fail');
+            } catch (e) {
+                deepStrictEqual(e, 'cors error');
+            }
+            deepStrictEqual(images.length, 1);
+        });
+
+        it('addImage should retry failed cors images with a cache-busting param if useCORSCacheBust', async () => {
+            const {cache} = createMockContext('http://example.com', {useCORS: true, useCORSCacheBust: true});
+            await cache.addImage('http://html2canvas.hertzen.com/test.jpg');
+            deepStrictEqual(images.length, 1);
+            deepStrictEqual(images[0].src, 'http://html2canvas.hertzen.com/test.jpg');
+            if (images[0].onerror) {
+                images[0].onerror('cors error');
+            }
+            deepStrictEqual(images.length, 2);
+            deepStrictEqual(images[1].src, 'http://html2canvas.hertzen.com/test.jpg?html2canvas-cors=1');
+            deepStrictEqual(images[1].crossOrigin, 'anonymous');
+            if (images[1].onload) {
+                images[1].onload();
+            }
+            const response = await cache.match('http://html2canvas.hertzen.com/test.jpg');
+            deepStrictEqual(response, images[1]);
+        });
+
+        it('cache-busting retry should keep existing query and hash', async () => {
+            const {cache} = createMockContext('http://example.com', {useCORS: true, useCORSCacheBust: true});
+            await cache.addImage('http://html2canvas.hertzen.com/test.jpg?a=b#frag');
+            if (images[0].onerror) {
+                images[0].onerror('cors error');
+            }
+            deepStrictEqual(images[1].src, 'http://html2canvas.hertzen.com/test.jpg?a=b&html2canvas-cors=1#frag');
+        });
+
+        it('cache-busting retry should only happen once', async () => {
+            const {cache} = createMockContext('http://example.com', {useCORS: true, useCORSCacheBust: true});
+            await cache.addImage('http://html2canvas.hertzen.com/test.jpg');
+            if (images[0].onerror) {
+                images[0].onerror('cors error');
+            }
+            if (images[1].onerror) {
+                images[1].onerror('second cors error');
+            }
+            try {
+                await cache.match('http://html2canvas.hertzen.com/test.jpg');
+                fail('Expected image to fail');
+            } catch (e) {
+                deepStrictEqual(e, 'second cors error');
+            }
+            deepStrictEqual(images.length, 2);
+        });
+
+        it('cache-busting retry should not apply to same-origin or tainted images', async () => {
+            const {cache} = createMockContext('http://example.com', {
+                useCORS: true,
+                useCORSCacheBust: true,
+                allowTaint: true,
+                proxy: undefined
+            });
+            await cache.addImage('http://example.com/test.jpg');
+            if (images[0].onerror) {
+                images[0].onerror('error');
+            }
+            deepStrictEqual(images.length, 1);
         });
 
         it('addImage should use proxy ', async () => {
