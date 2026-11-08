@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Zero-size linear gradient backgrounds</title>
+		<script type="text/javascript" src="../../test.js"></script>
+
+		<style>
+			body {
+				background-color: blanchedalmond;
+			}
+
+			div {
+				display: inline-block;
+				height: 100px;
+				border: 5px solid green;
+				background-image: linear-gradient(90deg, blue 10px, red);
+			}
+		</style>
+	</head>
+	<body>
+		<div style="width: 0;"></div>
+		<div style="width: 100px; height: 0;"></div>
+		<div style="width: 100px; background-size: 0 100%;"></div>
+		<div style="width: 100px; background-image: linear-gradient(0deg, blue, red); background-size: 100% 0;"></div>
+		<div style="width: 100px;"></div>
+	</body>
+</html>

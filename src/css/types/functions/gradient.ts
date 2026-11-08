@@ -64,6 +64,9 @@ export const processColorStops = (stops: UnprocessedGradientColorStop[], lineLen
     }
 
     return stops.map(({color}, i) => {
+        if (lineLength <= 0) {
+            return {color, stop: 0};
+        }
         return {color, stop: Math.max(Math.min(1, (processStops[i] as number) / lineLength), 0)};
     });
 };
