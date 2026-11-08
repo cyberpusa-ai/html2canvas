@@ -7,6 +7,7 @@ import {ElementPaint} from '../../stacking-context';
 import {FontMetrics} from '../../font-metrics';
 import {ElementContainer} from '../../../dom/element-container';
 import {InputElementContainer} from '../../../dom/replaced-elements/input-element-container';
+import {TextareaElementContainer} from '../../../dom/elements/textarea-element-container';
 
 const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     const fonts: string[] = [];
@@ -74,6 +75,32 @@ describe('CanvasRenderer', () => {
         strictEqual(getMetrics.mock.calls[0][0], 'Arial');
         strictEqual(getMetrics.mock.calls[0][1], '20px');
         strictEqual(fonts[fonts.length - 1], 'normal small-caps 400 20px Arial');
+    });
+
+    it('renders textarea values on separate lines, wrapped to the content box', async () => {
+        const textarea = document.createElement('textarea');
+        textarea.value = 'aa bb\ncc';
+        mockComputedStyle({fontFamily: 'Arial', fontSize: '10px', lineHeight: '20px'});
+
+        const {canvas} = createMockCanvas();
+        const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+        const fillText = jest.fn();
+        ctx.fillText = fillText;
+        ctx.measureText = (text: string) => ({width: text.length * 10});
+        const {context, renderer} = createRenderer(canvas);
+        const container = new TextareaElementContainer(context, textarea);
+        container.bounds = new Bounds(0, 0, 40, 100);
+        await renderer.renderNodeContent(new ElementPaint(container, null));
+
+        const calls = fillText.mock.calls.map(([text, x, y]) => [text, x, y]);
+        strictEqual(
+            JSON.stringify(calls),
+            JSON.stringify([
+                ['aa', 0, 10],
+                ['bb', 0, 30],
+                ['cc', 0, 50]
+            ])
+        );
     });
 
     it('renders list markers with the full font string', async () => {

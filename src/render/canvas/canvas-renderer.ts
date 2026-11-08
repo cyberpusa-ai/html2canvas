@@ -18,7 +18,7 @@ import {
 } from '../border';
 import {calculateBackgroundRendering, getBackgroundValueForIndex} from '../background';
 import {isDimensionToken} from '../../css/syntax/parser';
-import {segmentGraphemes, TextBounds} from '../../css/layout/text';
+import {breakTextareaLines, segmentGraphemes, TextBounds} from '../../css/layout/text';
 import {ImageElementContainer} from '../../dom/replaced-elements/image-element-container';
 import {contentBox} from '../box-sizing';
 import {CanvasElementContainer} from '../../dom/replaced-elements/canvas-element-container';
@@ -155,6 +155,44 @@ export class CanvasRenderer extends Renderer {
                 return left + this.ctx.measureText(letter).width;
             }, text.bounds.left);
         }
+    }
+
+    renderTextareaValue(value: string, bounds: Bounds, styles: CSSParsedDeclaration): void {
+        const letterSpacing = styles.letterSpacing;
+        const lineHeight = computeLineHeight(styles.lineHeight, styles.fontSize.number);
+        const measure = (text: string): number =>
+            this.ctx.measureText(text).width + (letterSpacing ? letterSpacing * segmentGraphemes(text).length : 0);
+        const lines = breakTextareaLines(value, bounds.width, measure, styles);
+
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+
+        lines.forEach((line, index) => {
+            if (!line.length) {
+                return;
+            }
+            const top = bounds.top + index * lineHeight + lineHeight / 2;
+            let left = bounds.left;
+            switch (styles.textAlign) {
+                case TEXT_ALIGN.CENTER:
+                    left += (bounds.width - measure(line)) / 2;
+                    break;
+                case TEXT_ALIGN.RIGHT:
+                    left += bounds.width - measure(line);
+                    break;
+            }
+
+            if (letterSpacing === 0) {
+                this.ctx.fillText(line, left, top);
+            } else {
+                // position each grapheme from the width of the text before it, which keeps kerning
+                let prefix = '';
+                segmentGraphemes(line).forEach((grapheme, i) => {
+                    this.ctx.fillText(grapheme, left + this.ctx.measureText(prefix).width + i * letterSpacing, top);
+                    prefix += grapheme;
+                });
+            }
+        });
     }
 
     private createFontStyle(styles: CSSParsedDeclaration): string[] {
@@ -421,11 +459,15 @@ export class CanvasRenderer extends Renderer {
             ]);
 
             this.ctx.clip();
-            this.renderTextWithLetterSpacing(
-                new TextBounds(container.value, textBounds),
-                styles.letterSpacing,
-                baseline
-            );
+            if (container instanceof TextareaElementContainer) {
+                this.renderTextareaValue(container.value, bounds, styles);
+            } else {
+                this.renderTextWithLetterSpacing(
+                    new TextBounds(container.value, textBounds),
+                    styles.letterSpacing,
+                    baseline
+                );
+            }
             this.ctx.restore();
             this.ctx.textBaseline = 'alphabetic';
             this.ctx.textAlign = 'left';
