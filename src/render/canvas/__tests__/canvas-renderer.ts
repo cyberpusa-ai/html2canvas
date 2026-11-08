@@ -8,6 +8,9 @@ import {FontMetrics} from '../../font-metrics';
 import {ElementContainer} from '../../../dom/element-container';
 import {InputElementContainer} from '../../../dom/replaced-elements/input-element-container';
 import {TextareaElementContainer} from '../../../dom/elements/textarea-element-container';
+import {TextContainer} from '../../../dom/text-container';
+import {TextBounds} from '../../../css/layout/text';
+import {CSSParsedDeclaration} from '../../../css';
 
 const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     const fonts: string[] = [];
@@ -233,6 +236,60 @@ describe('CanvasRenderer', () => {
             strictEqual(tile.width, 33);
             strictEqual(tile.height, 33);
             deepStrictEqual(fillScale, [1, 1]);
+        });
+    });
+    describe('text direction', () => {
+        const RLM = '\u200F';
+
+        const renderText = async (text: string, style: {[key: string]: string}) => {
+            const {canvas} = createMockCanvas();
+            const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+            const fillText = jest.fn();
+            const strokeText = jest.fn();
+            ctx.fillText = fillText;
+            ctx.strokeText = strokeText;
+            const {context, renderer} = createRenderer(canvas);
+            const styles = new CSSParsedDeclaration(context, {
+                fontFamily: 'Arial',
+                fontSize: '20px',
+                ...style
+            } as unknown as CSSStyleDeclaration);
+            const container = {textBounds: [new TextBounds(text, new Bounds(5, 0, 100, 20))]} as TextContainer;
+            await renderer.renderTextNode(container, styles);
+            const texts = (mock: jest.Mock): string => JSON.stringify(mock.mock.calls.map(([value]) => value));
+            return {fillText: texts(fillText), strokeText: texts(strokeText), ctx};
+        };
+
+        it('wraps rtl text in right-to-left marks so edge punctuation stays on the rtl side', async () => {
+            // browsers without CanvasRenderingContext2D.direction (Firefox < 101) lay the text out ltr
+            const {fillText, ctx} = await renderText('دنیا!', {direction: 'rtl'});
+
+            strictEqual(fillText, JSON.stringify([`${RLM}دنیا!${RLM}`]));
+            strictEqual(ctx.direction, 'rtl');
+        });
+
+        it('wraps rtl text drawn for text shadows and strokes', async () => {
+            const {fillText, strokeText} = await renderText('!سلام', {
+                direction: 'rtl',
+                textShadow: '1px 1px red',
+                webkitTextStrokeWidth: '1px',
+                paintOrder: 'stroke fill'
+            });
+
+            strictEqual(fillText, JSON.stringify([`${RLM}!سلام${RLM}`, `${RLM}!سلام${RLM}`]));
+            strictEqual(strokeText, JSON.stringify([`${RLM}!سلام${RLM}`]));
+        });
+
+        it('leaves ltr text unchanged', async () => {
+            const {fillText} = await renderText('world!', {direction: 'ltr'});
+
+            strictEqual(fillText, JSON.stringify(['world!']));
+        });
+
+        it('draws rtl graphemes unchanged when letter-spacing is set', async () => {
+            const {fillText} = await renderText('ab', {direction: 'rtl', letterSpacing: '2px'});
+
+            strictEqual(fillText, JSON.stringify(['a', 'b']));
         });
     });
 });
