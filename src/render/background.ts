@@ -4,7 +4,8 @@ import {ElementContainer} from '../dom/element-container';
 import {BACKGROUND_SIZE, BackgroundSizeInfo} from '../css/property-descriptors/background-size';
 import {Vector} from './vector';
 import {BACKGROUND_REPEAT} from '../css/property-descriptors/background-repeat';
-import {getAbsoluteValue, getAbsoluteValueForTuple, isLengthPercentage} from '../css/types/length-percentage';
+import {getAbsoluteValue, isLengthPercentage} from '../css/types/length-percentage';
+import {getAbsoluteValueForPosition} from '../css/property-descriptors/background-position';
 import {CSSValue, isIdentToken} from '../css/syntax/parser';
 import {contentBox, paddingBox} from './box-sizing';
 import {Path} from './path';
@@ -61,7 +62,7 @@ export const calculateBackgroundRendering = (
 
     const [sizeWidth, sizeHeight] = backgroundImageSize;
 
-    const position = getAbsoluteValueForTuple(
+    const position = getAbsoluteValueForPosition(
         getBackgroundValueForIndex(container.styles.backgroundPosition, index),
         backgroundPositioningArea.width - sizeWidth,
         backgroundPositioningArea.height - sizeHeight
