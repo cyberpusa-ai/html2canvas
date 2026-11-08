@@ -52,11 +52,12 @@ export const calculateBackgroundRendering = (
         container
     );
 
+    // canvas dimensions are truncated to integers, so a sub-pixel size would produce a 0px pattern
     const backgroundImageSize = calculateBackgroundSize(
         getBackgroundValueForIndex(container.styles.backgroundSize, index),
         intrinsicSize,
         backgroundPositioningArea
-    );
+    ).map((size) => (size > 0 ? Math.max(1, size) : size)) as [number, number];
 
     const [sizeWidth, sizeHeight] = backgroundImageSize;
 
