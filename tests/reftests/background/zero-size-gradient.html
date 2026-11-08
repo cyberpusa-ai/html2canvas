@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zero size gradient backgrounds</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script type="text/javascript" src="../../test.js"></script>
+    <style>
+        div {
+            float: left;
+            margin: 10px;
+            border: 5px solid #000;
+            height: 100px;
+        }
+        .zero-width {
+            width: 0;
+            background: linear-gradient(90deg, red, blue 10px, green);
+        }
+        .zero-height {
+            width: 100px;
+            height: 0;
+            background: linear-gradient(to bottom, red, blue);
+        }
+        .zero-size {
+            width: 100px;
+            background: linear-gradient(red, blue) no-repeat;
+            background-size: 0 0;
+        }
+        .zero-radial {
+            width: 0;
+            background: radial-gradient(circle, red, blue);
+        }
+        .visible {
+            width: 100px;
+            background: linear-gradient(90deg, red, blue);
+        }
+    </style>
+</head>
+<body>
+<div class="zero-width"></div>
+<div class="zero-height"></div>
+<div class="zero-size"></div>
+<div class="zero-radial"></div>
+<div class="visible"></div>
+</body>
+</html>

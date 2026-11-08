@@ -95,4 +95,42 @@ describe('CanvasRenderer', () => {
 
         strictEqual(fonts[fonts.length - 1], 'normal small-caps 400 20px Arial');
     });
+
+    it('skips linear gradient backgrounds with a zero size gradient box', async () => {
+        const div = document.createElement('div');
+        mockComputedStyle({backgroundImage: 'linear-gradient(90deg, red, blue 10px, green)'});
+
+        const stops: number[] = [];
+        const gradientCanvas = {
+            getContext: () => ({
+                createLinearGradient: () => ({
+                    addColorStop: (offset: number) => {
+                        if (!isFinite(offset)) {
+                            throw new TypeError(
+                                "Failed to execute 'addColorStop' on 'CanvasGradient': The provided double value is non-finite."
+                            );
+                        }
+                        stops.push(offset);
+                    }
+                }),
+                fillRect: () => undefined
+            })
+        } as unknown as HTMLCanvasElement;
+        const createElement = document.createElement.bind(document);
+        const createElementSpy = jest
+            .spyOn(document, 'createElement')
+            .mockImplementation((tagName: string) => (tagName === 'canvas' ? gradientCanvas : createElement(tagName)));
+
+        try {
+            const {canvas} = createMockCanvas();
+            const {context, renderer} = createRenderer(canvas);
+            // jsdom has no layout, so the element bounds are 0x0
+            const container = new ElementContainer(context, div);
+            strictEqual(container.bounds.width, 0);
+            await renderer.renderBackgroundImage(container);
+            strictEqual(stops.length, 0);
+        } finally {
+            createElementSpy.mockRestore();
+        }
+    });
 });

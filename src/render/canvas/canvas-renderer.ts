@@ -610,19 +610,19 @@ export class CanvasRenderer extends Renderer {
                 const [path, x, y, width, height] = calculateBackgroundRendering(container, index, [null, null, null]);
                 const [lineLength, x0, x1, y0, y1] = calculateGradientDirection(backgroundImage.angle, width, height);
 
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-                const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+                if (width > 0 && height > 0 && lineLength > 0) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+                    const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
 
-                processColorStops(backgroundImage.stops, lineLength).forEach((colorStop) =>
-                    gradient.addColorStop(colorStop.stop, asString(colorStop.color))
-                );
+                    processColorStops(backgroundImage.stops, lineLength).forEach((colorStop) =>
+                        gradient.addColorStop(colorStop.stop, asString(colorStop.color))
+                    );
 
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, width, height);
-                if (width > 0 && height > 0) {
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, width, height);
                     const pattern = this.ctx.createPattern(canvas, 'repeat') as CanvasPattern;
                     this.renderRepeat(path, pattern, x, y);
                 }
