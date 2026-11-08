@@ -29,6 +29,7 @@ export class CacheStorage {
 export interface ResourceOptions {
     imageTimeout: number;
     useCORS: boolean;
+    useCORSCacheBust?: boolean;
     allowTaint: boolean;
     proxy?: string;
 }
@@ -89,10 +90,28 @@ export class Cache {
 
         this.context.logger.debug(`Added image ${key.substring(0, 256)}`);
 
-        return await new Promise((resolve, reject) => {
+        // Chrome may reuse a cached non-CORS response for an image the page already loaded without crossorigin,
+        // which makes the CORS request fail. If opted in, retry once with a cache-busting query parameter.
+        const retry =
+            useCORS && this._options.useCORSCacheBust === true && !isBlobImage(src)
+                ? () => {
+                      this.context.logger.debug(`Retrying image ${key.substring(0, 256)} with cache-busting parameter`);
+                      return this.createImage(addCacheBustingParam(src), useCORS);
+                  }
+                : undefined;
+
+        return await this.createImage(src, useCORS, retry);
+    }
+
+    private createImage(
+        src: string,
+        useCORS: boolean,
+        retry?: () => Promise<HTMLImageElement>
+    ): Promise<HTMLImageElement> {
+        return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = reject;
+            img.onerror = retry ? () => retry().then(resolve, reject) : reject;
             //ios safari 10.3 taints canvas with data urls unless crossOrigin is set to anonymous
             if (isInlineBase64Image(src) || useCORS) {
                 img.crossOrigin = 'anonymous';
@@ -173,5 +192,12 @@ const isRenderable = (src: string): boolean => FEATURES.SUPPORT_SVG_DRAWING || !
 const isInlineImage = (src: string): boolean => INLINE_IMG.test(src);
 const isInlineBase64Image = (src: string): boolean => INLINE_BASE64.test(src);
 const isBlobImage = (src: string): boolean => src.substr(0, 4) === 'blob';
+
+const addCacheBustingParam = (src: string): string => {
+    const hashIndex = src.indexOf('#');
+    const url = hashIndex > -1 ? src.substring(0, hashIndex) : src;
+    const hash = hashIndex > -1 ? src.substring(hashIndex) : '';
+    return `${url}${url.indexOf('?') > -1 ? '&' : '?'}html2canvas-cors=1${hash}`;
+};
 
 const isSVG = (src: string): boolean => src.substr(-3).toLowerCase() === 'svg' || INLINE_SVG.test(src);
