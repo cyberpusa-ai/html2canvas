@@ -41,6 +41,7 @@ export interface WindowOptions {
 export type CloneConfigurations = CloneOptions & {
     inlineImages: boolean;
     copyStyles: boolean;
+    imageTimeout?: number;
 };
 
 const IGNORE_ATTRIBUTE = 'data-html2canvas-ignore';
@@ -112,8 +113,8 @@ export class DocumentCloner {
                 return Promise.reject(`Error finding the ${this.referenceElement.nodeName} in the cloned document`);
             }
 
-            if (documentClone.fonts && documentClone.fonts.ready) {
-                await documentClone.fonts.ready;
+            if (documentClone.fonts && documentClone.fonts.ready && documentClone.fonts.status !== 'loaded') {
+                await fontsReady(this.context, documentClone.fonts, this.options.imageTimeout);
             }
 
             if (/(AppleWebKit)/g.test(navigator.userAgent)) {
@@ -527,6 +528,30 @@ const imageReady = (img: HTMLImageElement): Promise<Event | void | string> => {
 
 const imagesReady = (document: HTMLDocument): Promise<unknown[]> => {
     return Promise.all([].slice.call(document.images, 0).map(imageReady));
+};
+
+// iOS 13+ can leave fonts.ready pending forever (#2191), so don't wait longer than imageTimeout
+const fontsReady = (context: Context, fonts: {ready: Promise<unknown>}, timeout?: number): Promise<unknown> => {
+    if (!timeout || timeout <= 0) {
+        return fonts.ready;
+    }
+
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            context.logger.warn(`Timed out (${timeout}ms) waiting for fonts to load`);
+            resolve(undefined);
+        }, timeout);
+        fonts.ready.then(
+            () => {
+                clearTimeout(timer);
+                resolve(undefined);
+            },
+            () => {
+                clearTimeout(timer);
+                resolve(undefined);
+            }
+        );
+    });
 };
 
 const iframeLoader = (iframe: HTMLIFrameElement): Promise<HTMLIFrameElement> => {
