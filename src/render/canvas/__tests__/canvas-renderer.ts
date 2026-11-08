@@ -113,4 +113,35 @@ describe('CanvasRenderer', () => {
 
         strictEqual(createPattern.mock.calls.length, 0);
     });
+
+    it('passes a canvas, not the source image, to createPattern when no resize is needed', async () => {
+        // Safari throws "SecurityError: The operation is insecure" from createPattern with SVG images
+        mockComputedStyle({backgroundImage: 'url(image.svg)', backgroundSize: '100px 100px'});
+
+        const {canvas} = createMockCanvas();
+        const {context, renderer} = createRenderer(canvas);
+        const container = new ElementContainer(context, document.createElement('div'));
+        container.bounds = new Bounds(0, 0, 100, 100);
+        const image = {width: 100, height: 100};
+        jest.spyOn(context.cache, 'match').mockResolvedValue(image);
+        const drawImage = jest.fn();
+        const getContext = jest
+            .spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockReturnValue({drawImage} as unknown as CanvasRenderingContext2D);
+        const createPattern = jest.fn();
+        (canvas.getContext('2d') as unknown as {[key: string]: unknown}).createPattern = createPattern;
+
+        try {
+            await renderer.renderBackgroundImage(container);
+        } finally {
+            getContext.mockRestore();
+        }
+
+        strictEqual(createPattern.mock.calls.length, 1);
+        const source = (createPattern.mock.calls[0] as unknown[])[0] as HTMLCanvasElement;
+        strictEqual(source instanceof HTMLCanvasElement, true);
+        strictEqual(source.width, 100);
+        strictEqual(source.height, 100);
+        strictEqual(drawImage.mock.calls[0][0], image);
+    });
 });

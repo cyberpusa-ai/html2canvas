@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+	<head>
+		<title>SVG background images at their intrinsic size</title>
+		<script type="text/javascript" src="../../test.js"></script>
+
+		<style>
+			body {
+				background-color: blanchedalmond;
+			}
+
+			div {
+				display: inline-block;
+				width: 200px;
+				height: 200px;
+				border: 5px solid green;
+				background-image: url(../../assets/image.svg);
+			}
+		</style>
+	</head>
+	<body>
+		<div></div>
+		<div style="background-repeat: no-repeat;"></div>
+		<div style="background-size: 50px 50px;"></div>
+		<div style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2210%22 height=%2210%22 fill=%22red%22/%3E%3C/svg%3E');"></div>
+	</body>
+</html>

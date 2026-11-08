@@ -568,11 +568,9 @@ export class CanvasRenderer extends Renderer {
         this.ctx.translate(-offsetX, -offsetY);
     }
 
-    resizeImage(image: HTMLImageElement, width: number, height: number): HTMLCanvasElement | HTMLImageElement {
-        if (image.width === width && image.height === height) {
-            return image;
-        }
-
+    resizeImage(image: HTMLImageElement, width: number, height: number): HTMLCanvasElement {
+        // Always draw into a canvas, even at the same size: Safari throws a SecurityError
+        // ("The operation is insecure") when createPattern is given an SVG image directly.
         const ownerDocument = this.canvas.ownerDocument ?? document;
         const canvas = ownerDocument.createElement('canvas');
         canvas.width = Math.max(1, width);
