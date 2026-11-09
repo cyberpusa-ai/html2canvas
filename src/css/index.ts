@@ -61,6 +61,7 @@ import {angle} from './types/angle';
 import {image} from './types/image';
 import {time} from './types/time';
 import {opacity} from './property-descriptors/opacity';
+import {filter} from './property-descriptors/filter';
 import {textDecorationColor} from './property-descriptors/text-decoration-color';
 import {textDecorationLine} from './property-descriptors/text-decoration-line';
 import {isLengthPercentage, LengthPercentage, ZERO_LENGTH} from './types/length-percentage';
@@ -127,6 +128,7 @@ export class CSSParsedDeclaration {
     marginRight: CSSValue;
     marginBottom: CSSValue;
     marginLeft: CSSValue;
+    filter: string | null;
     objectFit: ReturnType<typeof objectFit.parse>;
     opacity: ReturnType<typeof opacity.parse>;
     overflowX: OVERFLOW;
@@ -196,6 +198,7 @@ export class CSSParsedDeclaration {
         this.marginRight = parse(context, marginRight, declaration.marginRight);
         this.marginBottom = parse(context, marginBottom, declaration.marginBottom);
         this.marginLeft = parse(context, marginLeft, declaration.marginLeft);
+        this.filter = parse(context, filter, declaration.filter) ? declaration.filter : null;
         this.objectFit = parse(context, objectFit, declaration.objectFit);
         this.opacity = parse(context, opacity, declaration.opacity);
         const overflowTuple = parse(context, overflow, declaration.overflow);
@@ -240,6 +243,10 @@ export class CSSParsedDeclaration {
 
     isTransformed(): boolean {
         return this.transform !== null;
+    }
+
+    isFiltered(): boolean {
+        return this.filter !== null;
     }
 
     isPositioned(): boolean {

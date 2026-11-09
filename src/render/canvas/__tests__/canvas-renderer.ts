@@ -4,6 +4,7 @@ import {CanvasRenderer} from '../canvas-renderer';
 import {Context} from '../../../core/context';
 import {Bounds} from '../../../css/layout/bounds';
 import {ElementPaint} from '../../stacking-context';
+import {EffectTarget, isFilterEffect} from '../../effects';
 import {FontMetrics} from '../../font-metrics';
 import {ElementContainer} from '../../../dom/element-container';
 import {InputElementContainer} from '../../../dom/replaced-elements/input-element-container';
@@ -12,6 +13,7 @@ import {TextContainer} from '../../../dom/text-container';
 import {TextBounds} from '../../../css/layout/text';
 import {CSSParsedDeclaration} from '../../../css';
 import {CanvasElementContainer} from '../../../dom/replaced-elements/canvas-element-container';
+import {FEATURES} from '../../../core/features';
 
 const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     const fonts: string[] = [];
@@ -321,6 +323,72 @@ describe('CanvasRenderer', () => {
             const {fillText} = await renderText('ab', {direction: 'rtl', letterSpacing: '2px'});
 
             strictEqual(fillText, JSON.stringify(['a', 'b']));
+        });
+    });
+
+    describe('filter', () => {
+        let supportsFilter: jest.SpyInstance;
+
+        beforeEach(() => {
+            supportsFilter = jest.spyOn(FEATURES, 'SUPPORT_CANVAS_FILTER', 'get').mockReturnValue(true);
+        });
+
+        afterEach(() => supportsFilter.mockRestore());
+
+        // save() and restore() keep the filter like a real 2D context does
+        const trackFilterState = (ctx: {[key: string]: unknown}) => {
+            const saved: unknown[] = [];
+            ctx.filter = 'none';
+            ctx.save = () => saved.push(ctx.filter);
+            ctx.restore = () => (ctx.filter = saved.pop());
+        };
+
+        const renderWithFilter = async (filter: string) => {
+            mockComputedStyle({filter, backgroundColor: 'red'});
+            const {canvas} = createMockCanvas();
+            const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+            trackFilterState(ctx);
+            const filters: unknown[] = [];
+            ctx.fillRect = () => filters.push(ctx.filter);
+            ctx.fill = () => filters.push(ctx.filter);
+            const {context, renderer} = createRenderer(canvas);
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(0, 0, 100, 100);
+            const paint = new ElementPaint(container, null);
+            renderer.applyEffects(paint.getEffects(EffectTarget.BACKGROUND_BORDERS));
+            await renderer.renderNodeBackgroundAndBorders(paint);
+            return {paint, filters};
+        };
+
+        it('sets the computed filter on the context while painting the element', async () => {
+            const {paint, filters} = await renderWithFilter('blur(2px) grayscale(1)');
+            strictEqual(paint.effects.filter(isFilterEffect).length, 1);
+            deepStrictEqual(filters, ['blur(2px) grayscale(1)']);
+        });
+
+        it('does not add a filter effect for filter: none', async () => {
+            const {paint, filters} = await renderWithFilter('none');
+            strictEqual(paint.effects.filter(isFilterEffect).length, 0);
+            deepStrictEqual(filters, ['none']);
+        });
+
+        it('applies a nested filter before its ancestor filter', async () => {
+            mockComputedStyle({filter: 'grayscale(1)'});
+            const {canvas} = createMockCanvas();
+            const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+            trackFilterState(ctx);
+            const {context, renderer} = createRenderer(canvas);
+            const parent = new ElementPaint(new ElementContainer(context, document.createElement('div')), null);
+            mockComputedStyle({filter: 'blur(2px)'});
+            const child = new ElementPaint(new ElementContainer(context, document.createElement('div')), parent);
+            renderer.applyEffects(child.getEffects(EffectTarget.CONTENT));
+            strictEqual(ctx.filter, 'blur(2px) grayscale(1)');
+        });
+
+        it('does not touch the context filter when the browser cannot filter canvas drawing', async () => {
+            supportsFilter.mockReturnValue(false);
+            const {filters} = await renderWithFilter('blur(2px)');
+            deepStrictEqual(filters, ['none']);
         });
     });
 });

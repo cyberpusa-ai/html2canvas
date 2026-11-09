@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSS filter tests</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script type="text/javascript" src="../test.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+        }
+        .box {
+            display: inline-block;
+            width: 100px;
+            height: 60px;
+            margin: 10px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            border: 4px solid #2a7;
+            color: #fff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="box" style="filter: none">none</div>
+    <div class="box" style="filter: blur(3px)">blur</div>
+    <div class="box" style="filter: brightness(150%)">brightness</div>
+    <div class="box" style="filter: contrast(200%)">contrast</div>
+    <div class="box" style="filter: grayscale(100%)">grayscale</div>
+    <div class="box" style="filter: hue-rotate(90deg)">hue-rotate</div>
+    <div class="box" style="filter: invert(75%)">invert</div>
+    <div class="box" style="filter: opacity(50%)">opacity</div>
+    <div class="box" style="filter: saturate(300%)">saturate</div>
+    <div class="box" style="filter: sepia(100%)">sepia</div>
+    <div class="box" style="filter: drop-shadow(4px 4px 4px rgba(0, 0, 0, 0.5))">drop-shadow</div>
+    <div class="box" style="-webkit-filter: grayscale(100%)">-webkit-filter</div>
+    <div class="box" style="filter: grayscale(100%) brightness(120%)">multiple</div>
+    <div style="filter: grayscale(100%)">
+        <div class="box">nested</div>
+        <div class="box" style="position: relative; z-index: 1">positioned child</div>
+    </div>
+</body>
+</html>

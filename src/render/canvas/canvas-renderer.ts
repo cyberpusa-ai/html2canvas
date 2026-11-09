@@ -24,8 +24,16 @@ import {contentBox} from '../box-sizing';
 import {CanvasElementContainer} from '../../dom/replaced-elements/canvas-element-container';
 import {SVGElementContainer} from '../../dom/replaced-elements/svg-element-container';
 import {ReplacedElementContainer} from '../../dom/replaced-elements';
-import {EffectTarget, IElementEffect, isClipEffect, isOpacityEffect, isTransformEffect} from '../effects';
+import {
+    EffectTarget,
+    IElementEffect,
+    isClipEffect,
+    isFilterEffect,
+    isOpacityEffect,
+    isTransformEffect
+} from '../effects';
 import {contains} from '../../core/bitwise';
+import {FEATURES} from '../../core/features';
 import {calculateGradientDirection, calculateRadius, processColorStops} from '../../css/types/functions/gradient';
 import {FIFTY_PERCENT, getAbsoluteValue} from '../../css/types/length-percentage';
 import {TEXT_DECORATION_LINE} from '../../css/property-descriptors/text-decoration-line';
@@ -99,6 +107,12 @@ export class CanvasRenderer extends Renderer {
         this.ctx.save();
         if (isOpacityEffect(effect)) {
             this.ctx.globalAlpha = effect.opacity;
+        }
+
+        if (isFilterEffect(effect) && FEATURES.SUPPORT_CANVAS_FILTER) {
+            // an ancestor's filter applies to the result of this one
+            const outer = this.ctx.filter;
+            this.ctx.filter = outer && outer !== 'none' ? `${effect.filter} ${outer}` : effect.filter;
         }
 
         if (isTransformEffect(effect)) {

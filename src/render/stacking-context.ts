@@ -1,7 +1,15 @@
 import {ElementContainer, FLAGS} from '../dom/element-container';
 import {contains} from '../core/bitwise';
 import {BoundCurves, calculateBorderBoxPath, calculatePaddingBoxPath} from './bound-curves';
-import {ClipEffect, EffectTarget, IElementEffect, isClipEffect, OpacityEffect, TransformEffect} from './effects';
+import {
+    ClipEffect,
+    EffectTarget,
+    FilterEffect,
+    IElementEffect,
+    isClipEffect,
+    OpacityEffect,
+    TransformEffect
+} from './effects';
 import {OVERFLOW} from '../css/property-descriptors/overflow';
 import {equalPath} from './path';
 import {DISPLAY} from '../css/property-descriptors/display';
@@ -41,6 +49,10 @@ export class ElementPaint {
         this.curves = new BoundCurves(this.container);
         if (this.container.styles.opacity < 1) {
             this.effects.push(new OpacityEffect(this.container.styles.opacity));
+        }
+
+        if (this.container.styles.filter !== null) {
+            this.effects.push(new FilterEffect(this.container.styles.filter));
         }
 
         if (this.container.styles.transform !== null) {
@@ -114,7 +126,12 @@ const parseStackTree = (
 
             const stack = new StackingContext(paintContainer);
 
-            if (child.styles.isPositioned() || child.styles.opacity < 1 || child.styles.isTransformed()) {
+            if (
+                child.styles.isPositioned() ||
+                child.styles.opacity < 1 ||
+                child.styles.isTransformed() ||
+                child.styles.isFiltered()
+            ) {
                 const order = child.styles.zIndex.order;
                 if (order < 0) {
                     let index = 0;
