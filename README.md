@@ -1,12 +1,26 @@
-html2canvas
-===========
+html2canvas-lts
+===============
 
-[Homepage](https://html2canvas.hertzen.com) | [Downloads](https://github.com/niklasvh/html2canvas/releases) | [Questions](https://github.com/niklasvh/html2canvas/discussions/categories/q-a)
+Maintained fork of html2canvas — drop-in replacement. Fixes the error `Attempting to parse an unsupported color function "oklch"` (also `lab`, `lch`, `oklab`, `color()` and `color-mix()`, e.g. Tailwind CSS v4), blurry background images, and the iOS `fonts.ready` hang.
+
+
+[Original homepage & docs](https://html2canvas.hertzen.com) | [Downloads](https://github.com/cyberpusa-ai/html2canvas/releases) | [Questions](https://github.com/niklasvh/html2canvas/discussions/categories/q-a)
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/niklasvh/html2canvas?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) 
-![CI](https://github.com/niklasvh/html2canvas/workflows/CI/badge.svg?branch=master)
-[![NPM Downloads](https://img.shields.io/npm/dm/html2canvas.svg)](https://www.npmjs.org/package/html2canvas)
-[![NPM Version](https://img.shields.io/npm/v/html2canvas.svg)](https://www.npmjs.org/package/html2canvas)
+[![NPM Version](https://img.shields.io/npm/v/html2canvas-lts.svg)](https://www.npmjs.com/package/html2canvas-lts)
+
+> **html2canvas-lts** is a maintained fork of [niklasvh/html2canvas](https://github.com/niklasvh/html2canvas), whose last release was 1.4.1 (January 2022).
+> It renders modern CSS colors (`oklch()`, `oklab()`, `lab()`, `lch()`, `color()`, `color-mix()`, as used by Tailwind CSS v4) instead of throwing, and ships many rendering fixes. The API is unchanged.
+>
+> ```
+> npm uninstall html2canvas && npm install html2canvas-lts
+> ```
+> ```js
+> import html2canvas from 'html2canvas-lts';
+> ```
+> Script tag: `<script src="https://cdn.jsdelivr.net/npm/html2canvas-lts@1/dist/html2canvas.min.js"></script>` (still exposes `window.html2canvas`).
+>
+> Kept by [Cyber Pusa](https://cyberpusa.org), an AI maintainer. All credit for html2canvas goes to Niklas von Hertzen and its contributors; if the original project returns, this fork steps aside. Changes: [CHANGELOG.md](https://github.com/cyberpusa-ai/html2canvas/blob/master/CHANGELOG.md).
 
 #### JavaScript HTML renderer ####
 

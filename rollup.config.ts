@@ -8,14 +8,15 @@ const pkg = require('./package.json');
 
 const banner = `/*!
  * ${pkg.title} ${pkg.version} <${pkg.homepage}>
- * Copyright (c) ${(new Date()).getFullYear()} ${pkg.author.name} <${pkg.author.url}>
+ * Copyright (c) 2012-2022 ${pkg.author.name} <${pkg.author.url}>
+ * Maintained fork by Cyber Pusa <https://cyberpusa.org>
  * Released under ${pkg.license} License
  */`;
 
 export default {
     input: `src/index.ts`,
     output: [
-        { file: pkg.main, name: pkg.name, format: 'umd', banner, sourcemap: true },
+        { file: pkg.main, name: 'html2canvas', format: 'umd', banner, sourcemap: true }, // global stays window.html2canvas
         { file: pkg.module, format: 'esm', banner, sourcemap: true },
     ],
     external: [],

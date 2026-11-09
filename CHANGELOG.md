@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+# 1.5.0 (2026-11-09) — first release as `html2canvas-lts`
+
+Published as `html2canvas-lts` on npm; the API and the UMD global (`window.html2canvas`) are unchanged.
+Pull request numbers refer to https://github.com/cyberpusa-ai/html2canvas; `upstream #n` to the original issue at niklasvh/html2canvas.
+
+### Modern CSS colors (Tailwind CSS v4)
+html2canvas 1.4.1 rejects any element styled with a modern color function. These errors are gone:
+* `Error: Attempting to parse an unsupported color function "oklch"` — `oklch()` is supported (#6, upstream #3174)
+* `Error: Attempting to parse an unsupported color function "oklab"` — `oklab()` is supported; this is also the error for `color-mix()`, which browsers resolve to `oklab()` (#6)
+* `Error: Attempting to parse an unsupported color function "lab"` and `... "lch"` — `lab()` / `lch()` are supported (#6)
+* `Error: Attempting to parse an unsupported color function "color"` — `color(display-p3 …)` / `color(srgb …)` are supported, and any other unknown color function no longer throws (#3)
+
+### Features
+* support `object-fit` for img, canvas, svg and video (#20, upstream #3218)
+* opt-in `useCORSCacheBust` retry for failed CORS images (#16, upstream #3020)
+
+### Fixes
+* measure font baseline accurately and isolate it from page CSS (#19)
+* clone slot fallback content and explain a missing cloned element (#18, upstream #2929)
+* support keyword offsets in `background-position` (#17, upstream #2838)
+* keep RTL punctuation on the correct side in `fillText` (#15, upstream #2756)
+* wrap textarea text and honour line breaks (#14, upstream #2132)
+* render background images at canvas scale to avoid blur (#13, upstream #2723)
+* always draw background images into a canvas for `createPattern` (#11, upstream #2911)
+* ignore zero or non-finite intrinsic image sizes (#10, upstream #3043)
+* don't hang forever waiting for `document.fonts.ready` on iOS 13+, whose promise never resolved there (#9, upstream #2684)
+* clamp sub-pixel background sizes to avoid 0px patterns (#7, upstream #2982)
+* avoid non-finite gradient color stops on zero-size boxes (#5)
+* correct dereferencing of the `createFontStyle` return value (#2, upstream #2835)
+
+Upstream had no user-facing changes after 1.4.1 (only an examples fix and a changelog edit).
+
 ## [1.4.1](https://github.com/niklasvh/html2canvas/compare/v1.4.0...v1.4.1) (2022-01-22)
 
 

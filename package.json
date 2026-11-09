@@ -1,26 +1,47 @@
 {
-  "title": "html2canvas",
-  "name": "html2canvas",
-  "description": "Screenshots with JavaScript",
+  "title": "html2canvas-lts",
+  "name": "html2canvas-lts",
+  "description": "Maintained fork of html2canvas — drop-in replacement. Fixes the error 'Attempting to parse an unsupported color function \"oklch\"' (also lab, lch, oklab, color() and color-mix, e.g. Tailwind CSS v4), blurry background images, and the iOS fonts.ready hang.",
   "main": "dist/html2canvas.js",
   "module": "dist/html2canvas.esm.js",
   "typings": "dist/types/index.d.ts",
   "browser": "dist/html2canvas.js",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "author": {
     "name": "Niklas von Hertzen",
     "email": "niklasvh@gmail.com",
     "url": "https://hertzen.com"
   },
+  "contributors": [
+    {
+      "name": "Cyber Pusa",
+      "email": "packages@cyberpusa.org",
+      "url": "https://cyberpusa.org"
+    }
+  ],
+  "keywords": [
+    "html2canvas",
+    "html2canvas-lts",
+    "screenshot",
+    "canvas",
+    "dom-to-image",
+    "tailwind",
+    "tailwindcss-v4",
+    "oklch",
+    "oklab",
+    "lab",
+    "lch",
+    "color-mix"
+  ],
   "engines": {
     "node": ">=8.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:niklasvh/html2canvas.git"
+    "url": "git+https://github.com/cyberpusa-ai/html2canvas.git"
   },
   "bugs": {
-    "url": "https://github.com/niklasvh/html2canvas/issues"
+    "url": "https://github.com/cyberpusa-ai/html2canvas/issues"
   },
   "devDependencies": {
     "@babel/cli": "^7.4.3",
@@ -115,7 +136,7 @@
     "watch:unittest": "mocha --require ts-node/register --watch-extensions ts -w src/**/__tests__/*.ts",
     "start": "ts-node tests/server --port=8080 --cors=8081"
   },
-  "homepage": "https://html2canvas.hertzen.com",
+  "homepage": "https://github.com/cyberpusa-ai/html2canvas#readme",
   "license": "MIT",
   "dependencies": {
     "css-line-break": "^2.1.0",
