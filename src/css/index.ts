@@ -41,6 +41,7 @@ import {listStyleImage} from './property-descriptors/list-style-image';
 import {listStylePosition} from './property-descriptors/list-style-position';
 import {listStyleType} from './property-descriptors/list-style-type';
 import {marginBottom, marginLeft, marginRight, marginTop} from './property-descriptors/margin';
+import {mixBlendMode} from './property-descriptors/mix-blend-mode';
 import {objectFit} from './property-descriptors/object-fit';
 import {overflow, OVERFLOW} from './property-descriptors/overflow';
 import {overflowWrap} from './property-descriptors/overflow-wrap';
@@ -128,6 +129,7 @@ export class CSSParsedDeclaration {
     marginRight: CSSValue;
     marginBottom: CSSValue;
     marginLeft: CSSValue;
+    mixBlendMode: string;
     filter: string | null;
     objectFit: ReturnType<typeof objectFit.parse>;
     opacity: ReturnType<typeof opacity.parse>;
@@ -198,6 +200,7 @@ export class CSSParsedDeclaration {
         this.marginRight = parse(context, marginRight, declaration.marginRight);
         this.marginBottom = parse(context, marginBottom, declaration.marginBottom);
         this.marginLeft = parse(context, marginLeft, declaration.marginLeft);
+        this.mixBlendMode = parse(context, mixBlendMode, declaration.mixBlendMode);
         this.filter = parse(context, filter, declaration.filter) ? declaration.filter : null;
         this.objectFit = parse(context, objectFit, declaration.objectFit);
         this.opacity = parse(context, opacity, declaration.opacity);
@@ -247,6 +250,10 @@ export class CSSParsedDeclaration {
 
     isFiltered(): boolean {
         return this.filter !== null;
+    }
+
+    isBlended(): boolean {
+        return this.mixBlendMode !== 'normal';
     }
 
     isPositioned(): boolean {

@@ -460,4 +460,84 @@ describe('CanvasRenderer', () => {
             );
         });
     });
+    describe('mix-blend-mode', () => {
+        type Call = [string, unknown[], unknown];
+        let getContext: jest.SpyInstance;
+        let layers: {canvas: HTMLCanvasElement; calls: Call[]}[];
+
+        // records each call with the composite operation that was active, and keeps it across save()/restore()
+        const recordingContext = (calls: Call[]) => {
+            const saved: unknown[] = [];
+            const target: {[key: string]: unknown} = {globalCompositeOperation: 'source-over', filter: 'none'};
+            return new Proxy(target, {
+                get: (t, prop: string) =>
+                    prop in t
+                        ? t[prop]
+                        : (...args: unknown[]) => {
+                              calls.push([prop, args, t.globalCompositeOperation]);
+                              if (prop === 'save') {
+                                  saved.push(t.globalCompositeOperation);
+                              } else if (prop === 'restore') {
+                                  t.globalCompositeOperation = saved.pop();
+                              }
+                              return {width: 0};
+                          }
+            });
+        };
+
+        beforeEach(() => {
+            layers = [];
+            getContext = jest
+                .spyOn(HTMLCanvasElement.prototype, 'getContext')
+                .mockImplementation(function (this: HTMLCanvasElement) {
+                    const calls: Call[] = [];
+                    layers.push({canvas: this, calls});
+                    return recordingContext(calls);
+                } as unknown as typeof HTMLCanvasElement.prototype.getContext);
+        });
+
+        afterEach(() => {
+            getContext.mockRestore();
+        });
+
+        const render = async (mixBlendMode: string) => {
+            mockComputedStyle({mixBlendMode, backgroundColor: 'red'});
+            const calls: Call[] = [];
+            const canvas = {width: 800, height: 600, getContext: () => recordingContext(calls)};
+            const {context, renderer} = createRenderer(canvas as unknown as HTMLCanvasElement);
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(10, 10, 100, 100);
+            await renderer.renderStack(new StackingContext(new ElementPaint(container, null)));
+            return calls;
+        };
+
+        it('paints the element into a layer and draws it once with the blend mode', async () => {
+            const calls = await render('multiply');
+            strictEqual(layers.length, 1);
+            const {canvas, calls: layerCalls} = layers[0];
+            // the element paints normally inside its layer, so its own parts do not blend with each other
+            const fill = layerCalls.find(([name]) => name === 'fill');
+            strictEqual(fill && fill[2], 'source-over');
+            const drawIndex = calls.findIndex(([name]) => name === 'drawImage');
+            deepStrictEqual(calls[drawIndex], ['drawImage', [canvas, 0, 0], 'multiply']);
+            strictEqual(calls.filter(([name]) => name === 'fill').length, 0);
+            // the main context goes back to normal compositing
+            strictEqual(calls[drawIndex + 1][0], 'restore');
+        });
+
+        it('does not create a layer for mix-blend-mode: normal', async () => {
+            const calls = await render('normal');
+            strictEqual(layers.length, 0);
+            deepStrictEqual(
+                calls.filter(([name]) => name === 'fill').map(([, , mode]) => mode),
+                ['source-over']
+            );
+        });
+
+        it('does not create a layer for unsupported blend modes', async () => {
+            const calls = await render('plus-darker');
+            strictEqual(layers.length, 0);
+            strictEqual(calls.filter(([name]) => name === 'drawImage').length, 0);
+        });
+    });
 });

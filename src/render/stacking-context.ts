@@ -118,7 +118,8 @@ const parseStackTree = (
                 child.styles.isPositioned() ||
                 child.styles.opacity < 1 ||
                 child.styles.isTransformed() ||
-                child.styles.isFiltered()
+                child.styles.isFiltered() ||
+                child.styles.isBlended()
             ) {
                 const order = child.styles.zIndex.order;
                 if (order < 0) {

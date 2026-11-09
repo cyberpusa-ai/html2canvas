@@ -132,8 +132,9 @@ export class CanvasRenderer extends Renderer {
     async renderStack(stack: StackingContext): Promise<void> {
         const styles = stack.element.container.styles;
         if (styles.isVisible()) {
-            if (styles.filter !== null && FEATURES.SUPPORT_CANVAS_FILTER) {
-                await this.renderFilteredStack(stack, styles.filter);
+            const filter = styles.filter !== null && FEATURES.SUPPORT_CANVAS_FILTER ? styles.filter : null;
+            if (filter !== null || styles.isBlended()) {
+                await this.renderStackLayer(stack, filter, styles.mixBlendMode);
             } else {
                 await this.renderStackContent(stack);
             }
@@ -143,7 +144,8 @@ export class CanvasRenderer extends Renderer {
     // A filter applies to the element and its descendants as a whole, so paint them into a
     // layer and draw it with ctx.filter. Filtering each draw call would clip blur and shadows
     // to the background clip and shadow every primitive separately.
-    async renderFilteredStack(stack: StackingContext, filter: string): Promise<void> {
+    // mix-blend-mode likewise blends the whole group with what is behind it, not each part with the others.
+    async renderStackLayer(stack: StackingContext, filter: string | null, blendMode: string): Promise<void> {
         this.applyEffects([]);
         const ctx = this.ctx;
         const layer = document.createElement('canvas');
@@ -163,7 +165,12 @@ export class CanvasRenderer extends Renderer {
         // the layer is in device pixels, where filter lengths need the canvas scale
         this.ctx.save();
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.filter = scaleFilter(filter, this.options.scale);
+        if (filter !== null) {
+            this.ctx.filter = scaleFilter(filter, this.options.scale);
+        }
+        if (blendMode !== 'normal') {
+            this.ctx.globalCompositeOperation = blendMode;
+        }
         this.ctx.drawImage(layer, 0, 0);
         this.ctx.restore();
     }
