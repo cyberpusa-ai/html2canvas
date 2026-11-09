@@ -24,6 +24,8 @@ import {CSSParsedCounterDeclaration, CSSParsedPseudoDeclaration} from '../css/in
 import {getQuote} from '../css/property-descriptors/quotes';
 import {Context} from '../core/context';
 import {DebuggerType, isDebugging} from '../core/debugger';
+import {objectFit} from '../css/property-descriptors/object-fit';
+import {calculateObjectFitBounds} from '../render/object-fit';
 import {IGNORE_ATTRIBUTE} from './clone-failure';
 
 export interface CloneOptions {
@@ -256,7 +258,30 @@ export class DocumentCloner {
 
         try {
             if (ctx) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                    // the snapshot canvas matches neither author nor UA video styles, so apply object-fit here
+                    const style = video.ownerDocument.defaultView?.getComputedStyle(video);
+                    const {src, dest} = calculateObjectFitBounds(
+                        objectFit.parse(this.context, (style && style.objectFit) || objectFit.initialValue),
+                        video.videoWidth,
+                        video.videoHeight,
+                        canvas.width,
+                        canvas.height
+                    );
+                    ctx.drawImage(
+                        video,
+                        src.left,
+                        src.top,
+                        src.width,
+                        src.height,
+                        dest.left,
+                        dest.top,
+                        dest.width,
+                        dest.height
+                    );
+                } else {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                }
                 if (!this.options.allowTaint) {
                     ctx.getImageData(0, 0, canvas.width, canvas.height);
                 }

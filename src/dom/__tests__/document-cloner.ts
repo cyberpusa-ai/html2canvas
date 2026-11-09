@@ -41,6 +41,46 @@ describe('DocumentCloner', () => {
         document.querySelectorAll('iframe').forEach((iframe) => DocumentCloner.destroy(iframe));
     });
 
+    describe('video snapshots', () => {
+        const snapshotVideo = (objectFit: string) => {
+            const video = document.createElement('video');
+            video.style.objectFit = objectFit;
+            Object.defineProperties(video, {
+                offsetWidth: {value: 100},
+                offsetHeight: {value: 100},
+                videoWidth: {value: 200},
+                videoHeight: {value: 100}
+            });
+            const drawImage = jest.fn();
+            jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+                drawImage,
+                getImageData: jest.fn()
+            } as unknown as CanvasRenderingContext2D);
+            const context = new Context(
+                {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false},
+                new Bounds(0, 0, 800, 600)
+            );
+            const cloner = new DocumentCloner(context, document.body, {
+                inlineImages: false,
+                copyStyles: false,
+                imageTimeout: 0
+            });
+            const canvas = cloner.createVideoClone(video);
+            strictEqual(canvas.width, 100);
+            strictEqual(canvas.height, 100);
+            strictEqual(drawImage.mock.calls.length, 1);
+            return drawImage.mock.calls[0].slice(1).join(', ');
+        };
+
+        it('applies the object-fit of the video to the snapshot', () => {
+            strictEqual(snapshotVideo('contain'), '0, 0, 200, 100, 0, 25, 100, 50');
+            strictEqual(snapshotVideo('cover'), '50, 0, 100, 100, 0, 0, 100, 100');
+        });
+
+        it('stretches the video with object-fit: fill', () =>
+            strictEqual(snapshotVideo('fill'), '0, 0, 200, 100, 0, 0, 100, 100'));
+    });
+
     it('does not wait for fonts.ready when fonts are already loaded', async () => {
         // iOS 13+ can report status "loaded" while fonts.ready stays pending forever (#2191)
         mockFonts({status: 'loaded', ready: new Promise(() => undefined)});
