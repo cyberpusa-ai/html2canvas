@@ -90,4 +90,17 @@ describe('html2canvas', () => {
         );
         expect(DocumentCloner.destroy).not.toBeCalled();
     });
+
+    it('should reject with the reason when the element is missing from the clone', async () => {
+        const detached = document.createElement('div');
+        const MockCloner = DocumentCloner as unknown as {findsReferenceElement: boolean};
+        MockCloner.findsReferenceElement = false;
+        try {
+            await expect(html2canvas(detached)).rejects.toBe(
+                'Unable to find element in cloned iframe: element is not attached to the document'
+            );
+        } finally {
+            MockCloner.findsReferenceElement = true;
+        }
+    });
 });

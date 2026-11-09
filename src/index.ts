@@ -1,6 +1,7 @@
 import {Bounds, parseBounds, parseDocumentSize} from './css/layout/bounds';
 import {COLORS, isTransparent, parseColor} from './css/types/color';
 import {CloneConfigurations, CloneOptions, DocumentCloner, WindowOptions} from './dom/document-cloner';
+import {getCloneFailureReason} from './dom/clone-failure';
 import {isBodyElement, isHTMLElement, parseTree} from './dom/node-parser';
 import {CacheStorage} from './core/cache-storage';
 import {CanvasRenderer, RenderConfigurations, RenderOptions} from './render/canvas/canvas-renderer';
@@ -92,7 +93,8 @@ const renderElement = async (element: HTMLElement, opts: Partial<Options>): Prom
     const documentCloner = new DocumentCloner(context, element, cloneOptions);
     const clonedElement = documentCloner.clonedReferenceElement;
     if (!clonedElement) {
-        return Promise.reject(`Unable to find element in cloned iframe`);
+        const reason = getCloneFailureReason(element, cloneOptions);
+        return Promise.reject(`Unable to find element in cloned iframe${reason ? `: ${reason}` : ''}`);
     }
 
     const container = await documentCloner.toIFrame(ownerDocument, windowBounds);

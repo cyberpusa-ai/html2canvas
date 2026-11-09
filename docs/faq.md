@@ -46,3 +46,13 @@ is missing or incomplete and you feel that it should be part of the library, cre
 You shouldn't use html2canvas in a browser extension. Most browsers have native support for capturing screenshots from 
 tabs within extensions. Relevant information for [Chrome](https://developer.chrome.com/extensions/tabs#method-captureVisibleTab) and 
 [Firefox](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D#drawWindow()).
+
+## Why does html2canvas reject with "Unable to find element in cloned iframe"?
+html2canvas renders a clone of the element's document, so the element must be part of what gets cloned. The rejection
+message ends with the reason:
+
+- `element is not attached to the document`: the element is detached or lives in a `<template>`/`DocumentFragment`. Insert it into the page first.
+- `element or one of its ancestors is ignored`/`excluded by ignoreElements`: it sits under `data-html2canvas-ignore`, a `<script>`, or an element your `ignoreElements` callback skips.
+- `element is inside a closed shadow root`: closed shadow trees cannot be read. Use an open shadow root or render the host.
+- `element is a child of a shadow host but is not assigned to a slot`: the browser does not render it either.
+- `element is inside a <video>`: children of `<video>` are fallback content and are not rendered.
