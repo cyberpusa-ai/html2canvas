@@ -3,7 +3,7 @@ import '../../../dom/node-parser';
 import {CanvasRenderer} from '../canvas-renderer';
 import {Context} from '../../../core/context';
 import {Bounds} from '../../../css/layout/bounds';
-import {ElementPaint} from '../../stacking-context';
+import {ElementPaint, StackingContext} from '../../stacking-context';
 import {FontMetrics} from '../../font-metrics';
 import {ElementContainer} from '../../../dom/element-container';
 import {InputElementContainer} from '../../../dom/replaced-elements/input-element-container';
@@ -12,6 +12,7 @@ import {TextContainer} from '../../../dom/text-container';
 import {TextBounds} from '../../../css/layout/text';
 import {CSSParsedDeclaration} from '../../../css';
 import {CanvasElementContainer} from '../../../dom/replaced-elements/canvas-element-container';
+import {FEATURES} from '../../../core/features';
 
 const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     const fonts: string[] = [];
@@ -321,6 +322,142 @@ describe('CanvasRenderer', () => {
             const {fillText} = await renderText('ab', {direction: 'rtl', letterSpacing: '2px'});
 
             strictEqual(fillText, JSON.stringify(['a', 'b']));
+        });
+    });
+
+    describe('filter', () => {
+        type Call = [string, unknown[], unknown];
+        let supportsFilter: jest.SpyInstance;
+        let getContext: jest.SpyInstance;
+        let layers: {canvas: HTMLCanvasElement; calls: Call[]}[];
+
+        // records each call with the filter that was active, and keeps the filter across save()/restore()
+        const recordingContext = (calls: Call[], target: {[key: string]: unknown} = {}) => {
+            const saved: unknown[] = [];
+            target.filter = 'none';
+            return new Proxy(target, {
+                get: (t, prop: string) =>
+                    prop in t && prop !== 'save' && prop !== 'restore'
+                        ? t[prop]
+                        : (...args: unknown[]) => {
+                              calls.push([prop, args, t.filter]);
+                              if (prop === 'save') {
+                                  saved.push(t.filter);
+                              } else if (prop === 'restore') {
+                                  t.filter = saved.pop();
+                              }
+                              return {width: 0};
+                          }
+            });
+        };
+
+        beforeEach(() => {
+            supportsFilter = jest.spyOn(FEATURES, 'SUPPORT_CANVAS_FILTER', 'get').mockReturnValue(true);
+            layers = [];
+            getContext = jest
+                .spyOn(HTMLCanvasElement.prototype, 'getContext')
+                .mockImplementation(function (this: HTMLCanvasElement) {
+                    const calls: Call[] = [];
+                    layers.push({canvas: this, calls});
+                    return recordingContext(calls);
+                } as unknown as typeof HTMLCanvasElement.prototype.getContext);
+        });
+
+        afterEach(() => {
+            supportsFilter.mockRestore();
+            getContext.mockRestore();
+        });
+
+        const createStack = (context: Context, filter: string, parent: ElementPaint | null = null) => {
+            mockComputedStyle({filter, backgroundColor: 'red'});
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(10, 10, 100, 100);
+            return new StackingContext(new ElementPaint(container, parent));
+        };
+
+        const render = async (filter: string, scale = 1) => {
+            const calls: Call[] = [];
+            const canvas = {width: 800 * scale, height: 600 * scale} as {[key: string]: unknown};
+            const ctx = recordingContext(calls);
+            canvas.getContext = () => ctx;
+            const {context, renderer} = createRenderer(canvas as unknown as HTMLCanvasElement, scale);
+            await renderer.renderStack(createStack(context, filter));
+            return {calls, names: calls.map(([name]) => name)};
+        };
+
+        it('paints the element into a layer and draws it once with the filter', async () => {
+            const {calls} = await render('blur(2px) grayscale(1)');
+            strictEqual(layers.length, 1);
+            const {canvas, calls: layerCalls} = layers[0];
+            strictEqual(canvas.width, 800);
+            strictEqual(canvas.height, 600);
+            // the background is painted unfiltered, and its clip stays inside the layer
+            const fill = layerCalls.find(([name]) => name === 'fill');
+            strictEqual(fill && fill[2], 'none');
+            const draw = calls.filter(([name]) => name === 'drawImage');
+            deepStrictEqual(draw, [['drawImage', [canvas, 0, 0], 'blur(2px) grayscale(1)']]);
+            strictEqual(calls.filter(([name]) => name === 'fill').length, 0);
+        });
+
+        it('scales blur and drop-shadow lengths by the canvas scale', async () => {
+            const {calls} = await render('blur(2px) drop-shadow(rgb(255, 0, 0) 10px 0px 1.5px) grayscale(0.5)', 2);
+            const {canvas, calls: layerCalls} = layers[0];
+            strictEqual(canvas.width, 1600);
+            deepStrictEqual(
+                layerCalls.find(([name]) => name === 'scale'),
+                ['scale', [2, 2], 'none']
+            );
+            // the layer is drawn in device pixels
+            const drawIndex = calls.findIndex(([name]) => name === 'drawImage');
+            deepStrictEqual(
+                calls.slice(0, drawIndex).filter(([name]) => name === 'setTransform'),
+                [['setTransform', [1, 0, 0, 1, 0, 0], 'none']]
+            );
+            deepStrictEqual(calls[drawIndex], [
+                'drawImage',
+                [canvas, 0, 0],
+                'blur(4px) drop-shadow(rgb(255, 0, 0) 20px 0px 3px) grayscale(0.5)'
+            ]);
+            // the main context goes back to its unfiltered state
+            strictEqual(calls[drawIndex + 1][0], 'restore');
+        });
+
+        it('does not create a layer for filter: none', async () => {
+            const {names} = await render('none');
+            strictEqual(layers.length, 0);
+            strictEqual(names.indexOf('drawImage'), -1);
+            strictEqual(names.indexOf('fill') !== -1, true);
+        });
+
+        it('does not create a layer when the browser cannot filter canvas drawing', async () => {
+            supportsFilter.mockReturnValue(false);
+            const {calls} = await render('blur(2px)');
+            strictEqual(layers.length, 0);
+            deepStrictEqual(
+                calls.filter(([name]) => name === 'fill').map(([, , filter]) => filter),
+                ['none']
+            );
+        });
+
+        it('applies a nested filter before its ancestor filter', async () => {
+            const calls: Call[] = [];
+            const canvas = {width: 800, height: 600, getContext: () => recordingContext(calls)};
+            const {context, renderer} = createRenderer(canvas as unknown as HTMLCanvasElement);
+            const parent = createStack(context, 'grayscale(1)');
+            const child = createStack(context, 'blur(2px)', parent.element);
+            parent.zeroOrAutoZIndexOrTransformedOrOpacity.push(child);
+            await renderer.renderStack(parent);
+
+            strictEqual(layers.length, 2);
+            const [outer, inner] = layers;
+            deepStrictEqual(
+                outer.calls.filter(([name]) => name === 'drawImage'),
+                [['drawImage', [inner.canvas, 0, 0], 'blur(2px)']]
+            );
+            deepStrictEqual(
+                calls.filter(([name]) => name === 'drawImage'),
+                [['drawImage', [outer.canvas, 0, 0], 'grayscale(1)']]
+            );
         });
     });
 });

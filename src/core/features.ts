@@ -63,6 +63,11 @@ const testIOSLineBreak = (document: Document) => {
     return supports;
 };
 
+const testCanvasFilter = (document: Document): boolean => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    return !!ctx && typeof ctx.filter === 'string';
+};
+
 const testCORS = (): boolean => typeof new Image().crossOrigin !== 'undefined';
 
 const testResponseType = (): boolean => typeof new XMLHttpRequest().responseType === 'string';
@@ -192,6 +197,12 @@ export const FEATURES = {
                 ? testForeignObject(document)
                 : Promise.resolve(false);
         Object.defineProperty(FEATURES, 'SUPPORT_FOREIGNOBJECT_DRAWING', {value});
+        return value;
+    },
+    get SUPPORT_CANVAS_FILTER(): boolean {
+        'use strict';
+        const value = testCanvasFilter(document);
+        Object.defineProperty(FEATURES, 'SUPPORT_CANVAS_FILTER', {value});
         return value;
     },
     get SUPPORT_CORS_IMAGES(): boolean {

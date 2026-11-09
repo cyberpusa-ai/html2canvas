@@ -114,7 +114,12 @@ const parseStackTree = (
 
             const stack = new StackingContext(paintContainer);
 
-            if (child.styles.isPositioned() || child.styles.opacity < 1 || child.styles.isTransformed()) {
+            if (
+                child.styles.isPositioned() ||
+                child.styles.opacity < 1 ||
+                child.styles.isTransformed() ||
+                child.styles.isFiltered()
+            ) {
                 const order = child.styles.zIndex.order;
                 if (order < 0) {
                     let index = 0;

@@ -26,6 +26,8 @@ import {SVGElementContainer} from '../../dom/replaced-elements/svg-element-conta
 import {ReplacedElementContainer} from '../../dom/replaced-elements';
 import {EffectTarget, IElementEffect, isClipEffect, isOpacityEffect, isTransformEffect} from '../effects';
 import {contains} from '../../core/bitwise';
+import {FEATURES} from '../../core/features';
+import {scaleFilter} from '../../css/property-descriptors/filter';
 import {calculateGradientDirection, calculateRadius, processColorStops} from '../../css/types/functions/gradient';
 import {FIFTY_PERCENT, getAbsoluteValue} from '../../css/types/length-percentage';
 import {TEXT_DECORATION_LINE} from '../../css/property-descriptors/text-decoration-line';
@@ -130,8 +132,40 @@ export class CanvasRenderer extends Renderer {
     async renderStack(stack: StackingContext): Promise<void> {
         const styles = stack.element.container.styles;
         if (styles.isVisible()) {
-            await this.renderStackContent(stack);
+            if (styles.filter !== null && FEATURES.SUPPORT_CANVAS_FILTER) {
+                await this.renderFilteredStack(stack, styles.filter);
+            } else {
+                await this.renderStackContent(stack);
+            }
         }
+    }
+
+    // A filter applies to the element and its descendants as a whole, so paint them into a
+    // layer and draw it with ctx.filter. Filtering each draw call would clip blur and shadows
+    // to the background clip and shadow every primitive separately.
+    async renderFilteredStack(stack: StackingContext, filter: string): Promise<void> {
+        this.applyEffects([]);
+        const ctx = this.ctx;
+        const layer = document.createElement('canvas');
+        layer.width = this.canvas.width;
+        layer.height = this.canvas.height;
+        this.ctx = layer.getContext('2d') as CanvasRenderingContext2D;
+        this.ctx.scale(this.options.scale, this.options.scale);
+        this.ctx.translate(-this.options.x, -this.options.y);
+        this.ctx.textBaseline = 'bottom';
+        try {
+            await this.renderStackContent(stack);
+            this.applyEffects([]);
+        } finally {
+            this.ctx = ctx;
+        }
+
+        // the layer is in device pixels, where filter lengths need the canvas scale
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.ctx.filter = scaleFilter(filter, this.options.scale);
+        this.ctx.drawImage(layer, 0, 0);
+        this.ctx.restore();
     }
 
     async renderNode(paint: ElementPaint): Promise<void> {
