@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Text vertical alignment with mixed font sizes, line-heights and img/span resets</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="../../test.js"></script>
+        <style>
+            /* css resets like tailwind preflight must not affect font metrics */
+            img {
+                display: block;
+                max-width: 100%;
+                height: auto;
+            }
+            span {
+                padding: 3px;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 2.2;
+            }
+            div {
+                margin: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="font-size: 12px; line-height: normal">Hxgy 12px normal</div>
+        <div style="font-size: 16px; line-height: normal">Hxgy 16px normal</div>
+        <div style="font-size: 24px; line-height: 1">Hxgy 24px line-height 1</div>
+        <div style="font-size: 24px; line-height: 3">Hxgy 24px line-height 3</div>
+        <div style="font-size: 40px; line-height: 50px">Hxgy 40px line-height 50px</div>
+        <div style="font-size: 14px; line-height: 40px">Hxgy 14px line-height 40px</div>
+        <div style="font-size: 30px; font-family: Georgia, serif">Hxgy serif 30px</div>
+        <div style="font-size: 20px; font-family: 'Courier New', monospace">Hxgy monospace 20px</div>
+        <div style="font-size: 18px; line-height: 1.5">Hxgy <span style="font-size: 36px">Big</span> mixed</div>
+    </body>
+</html>

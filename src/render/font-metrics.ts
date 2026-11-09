@@ -35,19 +35,28 @@ export class FontMetrics {
         img.width = 1;
         img.height = 1;
 
+        // page css (e.g. img {display: block} from css resets) must not move the probe elements
+        img.style.display = 'inline';
+        img.style.width = '1px';
+        img.style.height = '1px';
+        img.style.border = '0';
         img.style.margin = '0';
         img.style.padding = '0';
         img.style.verticalAlign = 'baseline';
 
+        span.style.display = 'inline';
         span.style.fontFamily = fontFamily;
         span.style.fontSize = fontSize;
+        span.style.border = '0';
         span.style.margin = '0';
         span.style.padding = '0';
+        span.style.verticalAlign = 'baseline';
 
         span.appendChild(this._document.createTextNode(SAMPLE_TEXT));
         container.appendChild(span);
         container.appendChild(img);
-        const baseline = img.offsetTop - span.offsetTop + 2;
+        // the bottom edge of the 1px image sits on the baseline
+        const baseline = img.offsetTop - span.offsetTop + 1;
 
         container.removeChild(span);
         container.appendChild(this._document.createTextNode(SAMPLE_TEXT));
