@@ -11,6 +11,7 @@ import {TextareaElementContainer} from '../../../dom/elements/textarea-element-c
 import {TextContainer} from '../../../dom/text-container';
 import {TextBounds} from '../../../css/layout/text';
 import {CSSParsedDeclaration} from '../../../css';
+import {CanvasElementContainer} from '../../../dom/replaced-elements/canvas-element-container';
 
 const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     const fonts: string[] = [];
@@ -238,6 +239,36 @@ describe('CanvasRenderer', () => {
             deepStrictEqual(fillScale, [1, 1]);
         });
     });
+    describe('object-fit', () => {
+        const renderCanvas = async (objectFit?: string) => {
+            mockComputedStyle(objectFit ? {objectFit} : {});
+            const source = document.createElement('canvas');
+            source.width = 200;
+            source.height = 100;
+
+            const {canvas} = createMockCanvas();
+            const drawImage = jest.fn();
+            (canvas.getContext('2d') as unknown as {[key: string]: unknown}).drawImage = drawImage;
+            const {context, renderer} = createRenderer(canvas);
+            const container = new CanvasElementContainer(context, source);
+            container.bounds = new Bounds(10, 20, 100, 100);
+            await renderer.renderNodeContent(new ElementPaint(container, null));
+
+            strictEqual(drawImage.mock.calls.length, 1);
+            strictEqual(drawImage.mock.calls[0][0], source);
+            return drawImage.mock.calls[0].slice(1).join(', ');
+        };
+
+        it('stretches the content over the content box by default', async () =>
+            strictEqual(await renderCanvas(), '0, 0, 200, 100, 10, 20, 100, 100'));
+
+        it('letterboxes the content with object-fit: contain', async () =>
+            strictEqual(await renderCanvas('contain'), '0, 0, 200, 100, 10, 45, 100, 50'));
+
+        it('crops the content with object-fit: cover', async () =>
+            strictEqual(await renderCanvas('cover'), '50, 0, 100, 100, 10, 20, 100, 100'));
+    });
+
     describe('text direction', () => {
         const RLM = '\u200F';
 
