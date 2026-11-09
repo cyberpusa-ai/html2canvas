@@ -1,7 +1,11 @@
 export class DocumentCloner {
+    static findsReferenceElement = true;
     clonedReferenceElement?: HTMLElement;
 
     constructor() {
+        if (!DocumentCloner.findsReferenceElement) {
+            return;
+        }
         this.clonedReferenceElement = {
             ownerDocument: {
                 defaultView: {

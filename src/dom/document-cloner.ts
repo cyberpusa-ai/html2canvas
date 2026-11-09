@@ -24,6 +24,7 @@ import {CSSParsedCounterDeclaration, CSSParsedPseudoDeclaration} from '../css/in
 import {getQuote} from '../css/property-descriptors/quotes';
 import {Context} from '../core/context';
 import {DebuggerType, isDebugging} from '../core/debugger';
+import {IGNORE_ATTRIBUTE} from './clone-failure';
 
 export interface CloneOptions {
     ignoreElements?: (element: Element) => boolean;
@@ -43,8 +44,6 @@ export type CloneConfigurations = CloneOptions & {
     copyStyles: boolean;
     imageTimeout?: number;
 };
-
-const IGNORE_ATTRIBUTE = 'data-html2canvas-ignore';
 
 export class DocumentCloner {
     private readonly scrolledElements: [Element, number, number][];
@@ -294,9 +293,13 @@ export class DocumentCloner {
             child = child.nextSibling
         ) {
             if (isElementNode(child) && isSlotElement(child) && typeof child.assignedNodes === 'function') {
-                const assignedNodes = child.assignedNodes() as ChildNode[];
+                // flatten resolves nested slots and falls back to the slot's own content when nothing is assigned
+                const assignedNodes = child.assignedNodes({flatten: true}) as ChildNode[];
                 if (assignedNodes.length) {
                     assignedNodes.forEach((assignedNode) => this.appendChildNode(clone, assignedNode, copyStyles));
+                } else {
+                    // a <slot> outside a shadow tree renders its own children
+                    this.appendChildNode(clone, child, copyStyles);
                 }
             } else {
                 this.appendChildNode(clone, child, copyStyles);

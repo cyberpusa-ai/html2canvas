@@ -77,4 +77,58 @@ describe('DocumentCloner', () => {
         await result;
         strictEqual(warn.mock.calls.length, 0);
     });
+
+    describe('clonedReferenceElement', () => {
+        const findClone = (element: HTMLElement) => {
+            const context = new Context(
+                {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false},
+                new Bounds(0, 0, 800, 600)
+            );
+            return new DocumentCloner(context, element, {inlineImages: false, copyStyles: false})
+                .clonedReferenceElement;
+        };
+
+        const createShadowHost = (html: string) => {
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            host.attachShadow({mode: 'open'}).innerHTML = html;
+            return host;
+        };
+
+        afterEach(() => {
+            document.body.innerHTML = '';
+        });
+
+        it('finds an element inside an open shadow root', () => {
+            const host = createShadowHost('<p id="target"></p>');
+            const target = (host.shadowRoot as ShadowRoot).getElementById('target') as HTMLElement;
+            strictEqual(findClone(target)?.id, 'target');
+        });
+
+        it('finds slot fallback content when nothing is assigned (#2929)', () => {
+            const host = createShadowHost('<slot><span id="fallback"></span></slot>');
+            const fallback = (host.shadowRoot as ShadowRoot).getElementById('fallback') as HTMLElement;
+            strictEqual(findClone(fallback)?.id, 'fallback');
+        });
+
+        it('finds content assigned through nested slots', () => {
+            const inner = document.createElement('inner-el');
+            inner.attachShadow({mode: 'open'}).innerHTML = '<slot></slot>';
+            inner.innerHTML = '<slot></slot>';
+            const outer = createShadowHost('');
+            (outer.shadowRoot as ShadowRoot).appendChild(inner);
+            const target = document.createElement('b');
+            outer.appendChild(target);
+            strictEqual(findClone(target)?.tagName, 'B');
+        });
+
+        it('finds children of a slot outside a shadow tree', () => {
+            document.body.innerHTML = '<slot><i id="target"></i></slot>';
+            strictEqual(findClone(document.getElementById('target') as HTMLElement)?.id, 'target');
+        });
+
+        it('does not find a detached element', () => {
+            strictEqual(findClone(document.createElement('div')), undefined);
+        });
+    });
 });
