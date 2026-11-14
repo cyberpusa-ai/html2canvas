@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inline svg with image elements</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script type="text/javascript" src="../../../test.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+        }
+    </style>
+</head>
+<body>
+<div>
+    Inline svg with &lt;image href&gt; and &lt;image xlink:href&gt;: <br />
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100">
+        <rect width="200" height="100" fill="#00f" />
+        <image href="../../../assets/image.jpg" x="0" y="0" width="100" height="100" />
+        <image xlink:href="../../../assets/image2.jpg" x="100" y="0" width="100" height="100" />
+    </svg>
+</div>
+</body>
+</html>

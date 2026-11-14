@@ -27,6 +27,7 @@ import {DebuggerType, isDebugging} from '../core/debugger';
 import {objectFit} from '../css/property-descriptors/object-fit';
 import {calculateObjectFitBounds} from '../render/object-fit';
 import {IGNORE_ATTRIBUTE} from './clone-failure';
+import {inlineSVGImages} from './svg-images';
 
 export interface CloneOptions {
     ignoreElements?: (element: Element) => boolean;
@@ -123,10 +124,10 @@ export class DocumentCloner {
             }
 
             if (typeof onclone === 'function') {
-                return Promise.resolve()
-                    .then(() => onclone(documentClone, referenceElement))
-                    .then(() => iframe);
+                await Promise.resolve().then(() => onclone(documentClone, referenceElement));
             }
+
+            await inlineSVGImages(this.context, referenceElement);
 
             return iframe;
         });

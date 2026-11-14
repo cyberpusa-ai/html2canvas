@@ -1,6 +1,7 @@
 import {strictEqual} from 'assert';
 import {copyCSSStyles, DocumentCloner} from '../document-cloner';
 import {Context} from '../../core/context';
+import {Cache} from '../../core/cache-storage';
 import {Bounds} from '../../css/layout/bounds';
 
 type MockFontFaceSet = {status: string; ready: Promise<unknown>};
@@ -116,6 +117,30 @@ describe('DocumentCloner', () => {
         resolveFonts();
         await result;
         strictEqual(warn.mock.calls.length, 0);
+    });
+
+    it('inlines svg <image> hrefs in the clone after onclone, without touching the document (#2054)', async () => {
+        document.body.innerHTML =
+            '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/a.png"></image></svg>';
+        const windowBounds = new Bounds(0, 0, 800, 600);
+        const cache = {
+            addImage: jest.fn(() => Promise.resolve()),
+            match: jest.fn(() => Promise.resolve({src: 'data:image/png;base64,AAAA'}))
+        } as unknown as Cache;
+        const context = new Context(
+            {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false, cache},
+            windowBounds
+        );
+        const onclone = jest.fn((doc: Document) => {
+            strictEqual(doc.getElementsByTagName('image')[0].getAttribute('href'), 'http://example.com/a.png');
+        });
+        const cloner = new DocumentCloner(context, document.body, {inlineImages: false, copyStyles: false, onclone});
+        const iframe = await cloner.toIFrame(document, windowBounds);
+        const clonedImage = (iframe.contentWindow as Window).document.getElementsByTagName('image')[0];
+        strictEqual(onclone.mock.calls.length, 1);
+        strictEqual(clonedImage.getAttribute('href'), 'data:image/png;base64,AAAA');
+        strictEqual(document.getElementsByTagName('image')[0].getAttribute('href'), 'http://example.com/a.png');
+        document.body.innerHTML = '';
     });
 
     describe('clonedReferenceElement', () => {
