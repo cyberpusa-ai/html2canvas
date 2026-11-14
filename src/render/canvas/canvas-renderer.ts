@@ -24,6 +24,7 @@ import {
 } from '../border';
 import {calculateBackgroundRendering, getBackgroundValueForIndex} from '../background';
 import {isDimensionToken} from '../../css/syntax/parser';
+import {BACKGROUND_REPEAT, BackgroundRepeat} from '../../css/property-descriptors/background-repeat';
 import {breakTextareaLines, segmentGraphemes, TextBounds} from '../../css/layout/text';
 import {ImageElementContainer} from '../../dom/replaced-elements/image-element-container';
 import {contentBox} from '../box-sizing';
@@ -300,7 +301,12 @@ export class CanvasRenderer extends Renderer {
                                     this.ctx.shadowOffsetY = textShadow.offsetY.number * this.options.scale;
                                     this.ctx.shadowBlur = textShadow.blur.number;
 
-                                    this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline, styles.direction);
+                                    this.renderTextWithLetterSpacing(
+                                        text,
+                                        styles.letterSpacing,
+                                        baseline,
+                                        styles.direction
+                                    );
                                 });
 
                             this.ctx.shadowColor = '';
@@ -735,7 +741,7 @@ export class CanvasRenderer extends Renderer {
                         const tileHeight = Math.max(1, Math.round(height * this.options.scale));
                         const pattern = this.ctx.createPattern(
                             this.resizeImage(image, tileWidth, tileHeight),
-                            'repeat'
+                            getPatternRepetition(container.styles.backgroundRepeat, index)
                         ) as CanvasPattern;
                         this.renderRepeat(path, pattern, x, y, width / tileWidth, height / tileHeight);
                     }
@@ -758,7 +764,10 @@ export class CanvasRenderer extends Renderer {
 
                     ctx.fillStyle = gradient;
                     ctx.fillRect(0, 0, width, height);
-                    const pattern = this.ctx.createPattern(canvas, 'repeat') as CanvasPattern;
+                    const pattern = this.ctx.createPattern(
+                        canvas,
+                        getPatternRepetition(container.styles.backgroundRepeat, index)
+                    ) as CanvasPattern;
                     this.renderRepeat(path, pattern, x, y);
                 }
             } else if (isRadialGradient(backgroundImage)) {
@@ -1105,6 +1114,22 @@ const canvasTextAlign = (textAlign: TEXT_ALIGN): CanvasTextAlign => {
 };
 
 // see https://github.com/niklasvh/html2canvas/pull/2645
+// The pattern must match background-repeat: a 'repeat' pattern bleeds the opposite edge of the image
+// into a no-repeat (or single-axis) background whenever its position or size is fractional.
+export const getPatternRepetition = (repeat: BackgroundRepeat, index: number): string => {
+    switch (getBackgroundValueForIndex(repeat, index)) {
+        case BACKGROUND_REPEAT.NO_REPEAT:
+            return 'no-repeat';
+        case BACKGROUND_REPEAT.REPEAT_X:
+            return 'repeat-x';
+        case BACKGROUND_REPEAT.REPEAT_Y:
+            return 'repeat-y';
+        case BACKGROUND_REPEAT.REPEAT:
+        default:
+            return 'repeat';
+    }
+};
+
 const iOSBrokenFonts = ['-apple-system', 'system-ui'];
 
 // ctx.direction is ignored by some browsers (Firefox < 101), which then draw rtl text with an ltr base direction

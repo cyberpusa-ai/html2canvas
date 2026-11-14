@@ -330,6 +330,85 @@ describe('CanvasRenderer', () => {
             deepStrictEqual(fillScale, [1, 1]);
         });
     });
+
+    describe('background-repeat', () => {
+        const patternRepetitions = async (style: {[key: string]: string}) => {
+            mockComputedStyle({backgroundSize: '33.5px 33.5px', backgroundPosition: '10.5px 10.5px', ...style});
+            const {canvas} = createMockCanvas();
+            const {context, renderer} = createRenderer(canvas);
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(0, 0, 100, 100);
+            jest.spyOn(context.cache, 'match').mockResolvedValue({width: 400, height: 400});
+            const getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+                drawImage: jest.fn(),
+                createLinearGradient: () => ({addColorStop: jest.fn()}),
+                fillRect: jest.fn()
+            } as unknown as CanvasRenderingContext2D);
+            const createPattern = jest.fn();
+            (canvas.getContext('2d') as unknown as {[key: string]: unknown}).createPattern = createPattern;
+            try {
+                await renderer.renderBackgroundImage(container);
+            } finally {
+                getContext.mockRestore();
+            }
+            return createPattern.mock.calls.map((args) => (args as unknown[])[1]).join(', ');
+        };
+
+        it('creates the image pattern with the repetition of background-repeat', async () => {
+            for (const repeat of ['repeat', 'no-repeat', 'repeat-x', 'repeat-y']) {
+                strictEqual(
+                    await patternRepetitions({backgroundImage: 'url(image.png)', backgroundRepeat: repeat}),
+                    repeat
+                );
+            }
+        });
+
+        it('maps the two-value syntax to the matching repetition', async () => {
+            strictEqual(
+                await patternRepetitions({backgroundImage: 'url(image.png)', backgroundRepeat: 'repeat no-repeat'}),
+                'repeat-x'
+            );
+            strictEqual(
+                await patternRepetitions({backgroundImage: 'url(image.png)', backgroundRepeat: 'no-repeat repeat'}),
+                'repeat-y'
+            );
+        });
+
+        it('creates the linear-gradient pattern with the repetition of background-repeat', async () => {
+            strictEqual(
+                await patternRepetitions({
+                    backgroundImage: 'linear-gradient(red, blue)',
+                    backgroundRepeat: 'no-repeat'
+                }),
+                'no-repeat'
+            );
+        });
+
+        it('uses the background-repeat of each layer', async () => {
+            // layers are painted bottom-up, so the last layer comes first
+            strictEqual(
+                await patternRepetitions({
+                    backgroundImage: 'url(a.png), linear-gradient(red, blue), url(b.png)',
+                    backgroundRepeat: 'no-repeat, repeat-y, repeat-x'
+                }),
+                'repeat-x, repeat-y, no-repeat'
+            );
+        });
+
+        it('reuses the first background-repeat value for layers without one', async () => {
+            strictEqual(
+                await patternRepetitions({
+                    backgroundImage: 'url(a.png), url(b.png)',
+                    backgroundRepeat: 'no-repeat'
+                }),
+                'no-repeat, no-repeat'
+            );
+        });
+
+        it('keeps repeating by default', async () => {
+            strictEqual(await patternRepetitions({backgroundImage: 'url(image.png)'}), 'repeat');
+        });
+    });
     describe('object-fit', () => {
         const renderCanvas = async (objectFit?: string) => {
             mockComputedStyle(objectFit ? {objectFit} : {});
