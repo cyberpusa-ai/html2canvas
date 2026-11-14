@@ -7,7 +7,7 @@ import {
     GradientCorner,
     UnprocessedGradientColorStop
 } from '../image';
-import {color as colorType} from '../color';
+import {Color, color as colorType, pack} from '../color';
 import {getAbsoluteValue, HUNDRED_PERCENT, isLengthPercentage, ZERO_LENGTH} from '../length-percentage';
 import {Context} from '../../../core/context';
 
@@ -17,7 +17,7 @@ export const parseColorStop = (context: Context, args: CSSValue[]): UnprocessedG
     return stop && isLengthPercentage(stop) ? {color, stop} : {color, stop: null};
 };
 
-export const processColorStops = (stops: UnprocessedGradientColorStop[], lineLength: number): GradientColorStop[] => {
+const getColorStopPositions = (stops: UnprocessedGradientColorStop[], lineLength: number): number[] => {
     const first = stops[0];
     const last = stops[stops.length - 1];
     if (first.stop === null) {
@@ -63,12 +63,84 @@ export const processColorStops = (stops: UnprocessedGradientColorStop[], lineLen
         }
     }
 
+    return processStops as number[];
+};
+
+export const processColorStops = (stops: UnprocessedGradientColorStop[], lineLength: number): GradientColorStop[] => {
+    const positions = getColorStopPositions(stops, lineLength);
     return stops.map(({color}, i) => {
         if (lineLength <= 0) {
             return {color, stop: 0};
         }
-        return {color, stop: Math.max(Math.min(1, (processStops[i] as number) / lineLength), 0)};
+        return {color, stop: Math.max(Math.min(1, positions[i] / lineLength), 0)};
     });
+};
+
+// Upper bound on how often the stop list is repeated along the gradient line, so a tiny period can't
+// produce an unbounded number of color stops.
+const MAX_GRADIENT_REPEATS = 1000;
+
+const interpolateColor = (from: Color, to: Color, t: number): Color => {
+    const channel = (shift: number) => {
+        const a = 0xff & (from >> shift);
+        const b = 0xff & (to >> shift);
+        return Math.round(a + (b - a) * t);
+    };
+    return pack(channel(24), channel(16), channel(8), channel(0) / 255);
+};
+
+interface PositionedColor {
+    color: Color;
+    position: number;
+}
+
+const colorAt = (from: PositionedColor, to: PositionedColor, position: number): Color =>
+    interpolateColor(from.color, to.color, (position - from.position) / (to.position - from.position));
+
+// Color stops for repeating-linear-gradient / repeating-radial-gradient: the stop list (from the first
+// to the last stop) is repeated in both directions until it covers the whole gradient line.
+// Stop lengths resolve against lineLength; the returned offsets are relative to paintLength, which can be
+// longer (a repeating radial gradient keeps repeating past its ending shape up to the corners of the box).
+export const processRepeatingColorStops = (
+    stops: UnprocessedGradientColorStop[],
+    lineLength: number,
+    paintLength = lineLength
+): GradientColorStop[] => {
+    const positions = getColorStopPositions(stops, lineLength);
+    const first = positions[0];
+    const period = positions[positions.length - 1] - first;
+    if (
+        !(lineLength > 0) ||
+        !(paintLength >= lineLength) ||
+        !(period > 0) ||
+        !isFinite(paintLength) ||
+        paintLength / period > MAX_GRADIENT_REPEATS
+    ) {
+        return processColorStops(stops, lineLength);
+    }
+    lineLength = paintLength;
+
+    const repeated: PositionedColor[] = [];
+    for (let offset = first - Math.ceil(first / period) * period; offset < lineLength; offset += period) {
+        stops.forEach(({color}, i) => repeated.push({color, position: offset + positions[i] - first}));
+    }
+
+    const result: GradientColorStop[] = [];
+    repeated.forEach((current, i) => {
+        const previous = repeated[i - 1];
+        if (previous) {
+            if (previous.position < 0 && current.position > 0) {
+                result.push({color: colorAt(previous, current, 0), stop: 0});
+            }
+            if (previous.position < lineLength && current.position > lineLength) {
+                result.push({color: colorAt(previous, current, lineLength), stop: 1});
+            }
+        }
+        if (current.position >= 0 && current.position <= lineLength) {
+            result.push({color: current.color, stop: current.position / lineLength});
+        }
+    });
+    return result;
 };
 
 const getAngleFromCorner = (corner: GradientCorner, width: number, height: number): number => {
@@ -206,4 +278,23 @@ export const calculateRadius = (
     }
 
     return [rx, ry];
+};
+
+// Distance from the gradient center to the farthest corner of the box, measured along the x radius of the
+// ending shape (an elliptical gradient is drawn as a circle of radius rx, scaled vertically by ry / rx).
+export const calculateRadialPaintLength = (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    rx: number,
+    ry: number
+): number => {
+    const scale = rx / ry;
+    return Math.max(
+        distance(x, y * scale),
+        distance(x - width, y * scale),
+        distance(x, (y - height) * scale),
+        distance(x - width, (y - height) * scale)
+    );
 };

@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Repeating linear and radial gradient backgrounds</title>
+		<script type="text/javascript" src="../../test.js"></script>
+
+		<style>
+			body {
+				background-color: blanchedalmond;
+			}
+
+			div {
+				display: inline-block;
+				width: 150px;
+				height: 100px;
+				margin: 5px;
+				border: 5px solid green;
+			}
+		</style>
+	</head>
+	<body>
+		<div style="background-image: repeating-linear-gradient(90deg, red, red 10px, blue 10px, blue 20px);"></div>
+		<div style="background-image: repeating-linear-gradient(45deg, yellow 0, yellow 10px, black 10px, black 20px);"></div>
+		<div style="background-image: repeating-linear-gradient(to bottom, red, blue 35px);"></div>
+		<div style="background-image: repeating-linear-gradient(90deg, red 5px, blue 15px);"></div>
+		<div style="background-image: -webkit-repeating-linear-gradient(left, red, red 10px, white 10px, white 20px);"></div>
+		<div style="background-image: repeating-linear-gradient(90deg, red, blue 0);"></div>
+		<div style="background-image: repeating-radial-gradient(circle, red, red 10px, blue 10px, blue 20px);"></div>
+		<div style="background-image: repeating-radial-gradient(circle at 20px 20px, yellow, black 15px);"></div>
+		<div style="background-image: repeating-radial-gradient(ellipse 60px 30px, red, red 10px, white 10px, white 20px);"></div>
+		<div style="background-image: repeating-linear-gradient(90deg, red, blue 20px); background-size: 50px 50px;"></div>
+	</body>
+</html>

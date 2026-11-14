@@ -178,6 +178,75 @@ describe('CanvasRenderer', () => {
         strictEqual(drawImage.mock.calls[0][0], image);
     });
 
+    describe('repeating gradients', () => {
+        const renderGradient = async (backgroundImage: string) => {
+            mockComputedStyle({backgroundImage, backgroundSize: '100px 100px'});
+            const {canvas} = createMockCanvas();
+            const {context, renderer} = createRenderer(canvas);
+            const container = new ElementContainer(context, document.createElement('div'));
+            container.bounds = new Bounds(0, 0, 100, 100);
+            const stops: [number, string][] = [];
+            const gradient = {
+                addColorStop: (stop: number, color: string) => stops.push([Math.round(stop * 1000) / 1000, color])
+            };
+            const ctx = canvas.getContext('2d') as unknown as {[key: string]: unknown};
+            ctx.createPattern = jest.fn();
+            ctx.createRadialGradient = jest.fn(() => gradient);
+            const getContext = jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+                createLinearGradient: () => gradient,
+                fillRect: jest.fn()
+            } as unknown as CanvasRenderingContext2D);
+            try {
+                await renderer.renderBackgroundImage(container);
+            } finally {
+                getContext.mockRestore();
+            }
+            return {ctx, stops};
+        };
+
+        it('repeats the color stops of repeating-linear-gradient', async () => {
+            const {ctx, stops} = await renderGradient('repeating-linear-gradient(red, blue 50px)');
+            // the 180deg gradient line is 100px plus float noise, so only compare the full repetitions
+            deepStrictEqual(stops.slice(0, 4), [
+                [0, 'rgb(255,0,0)'],
+                [0.5, 'rgb(0,0,255)'],
+                [0.5, 'rgb(255,0,0)'],
+                [1, 'rgb(0,0,255)']
+            ]);
+            strictEqual((ctx.createPattern as jest.Mock).mock.calls.length, 1);
+        });
+
+        it('sizes repeating-radial-gradient stops by the radius and repeats them out to the farthest corner', async () => {
+            const {ctx, stops} = await renderGradient('repeating-radial-gradient(circle 40px, red, blue 20px)');
+            const [x0, y0, r0, x1, y1, r1] = (ctx.createRadialGradient as jest.Mock).mock.calls[0] as number[];
+            deepStrictEqual([x0, y0, r0, x1, y1, Math.round(r1 * 1000) / 1000], [50, 50, 0, 50, 50, 70.711]);
+            deepStrictEqual(stops, [
+                [0, 'rgb(255,0,0)'],
+                [0.283, 'rgb(0,0,255)'],
+                [0.283, 'rgb(255,0,0)'],
+                [0.566, 'rgb(0,0,255)'],
+                [0.566, 'rgb(255,0,0)'],
+                [0.849, 'rgb(0,0,255)'],
+                [0.849, 'rgb(255,0,0)'],
+                [1, 'rgb(118,0,137)']
+            ]);
+        });
+
+        it('keeps the radius of non-repeating radial gradients unchanged', async () => {
+            const {ctx} = await renderGradient('radial-gradient(circle 40px, red, blue 20px)');
+            const [, , , , , r1] = (ctx.createRadialGradient as jest.Mock).mock.calls[0] as number[];
+            strictEqual(r1, 40);
+        });
+
+        it('keeps the stops of non-repeating linear gradients unchanged', async () => {
+            const {stops} = await renderGradient('linear-gradient(red, blue 50px)');
+            deepStrictEqual(stops, [
+                [0, 'rgb(255,0,0)'],
+                [0.5, 'rgb(0,0,255)']
+            ]);
+        });
+    });
+
     describe('background image resolution', () => {
         const renderAtScale = async (scale: number, size: number) => {
             mockComputedStyle({backgroundImage: 'url(image.png)', backgroundSize: `${size}px ${size}px`});

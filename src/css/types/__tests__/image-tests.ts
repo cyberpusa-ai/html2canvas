@@ -227,6 +227,46 @@ describe('types', () => {
                         ]
                     }));
             });
+            describe('repeating gradients', () => {
+                const px = (number: number) => ({
+                    type: TokenType.DIMENSION_TOKEN,
+                    number,
+                    flags: FLAG_INTEGER,
+                    unit: 'px'
+                });
+                it('repeating-linear-gradient(45deg, red, blue 20px)', () =>
+                    deepStrictEqual(parse(context, 'repeating-linear-gradient(45deg, red, blue 20px)'), {
+                        angle: deg(45),
+                        type: CSSImageType.LINEAR_GRADIENT,
+                        stops: [
+                            {color: colorParse(context, 'red'), stop: null},
+                            {color: colorParse(context, 'blue'), stop: px(20)}
+                        ],
+                        repeating: true
+                    }));
+                it('-webkit-repeating-linear-gradient(top, red, blue 20px)', () =>
+                    deepStrictEqual(parse(context, '-webkit-repeating-linear-gradient(top, red, blue 20px)'), {
+                        angle: deg(180),
+                        type: CSSImageType.LINEAR_GRADIENT,
+                        stops: [
+                            {color: colorParse(context, 'red'), stop: null},
+                            {color: colorParse(context, 'blue'), stop: px(20)}
+                        ],
+                        repeating: true
+                    }));
+                it('repeating-radial-gradient(circle, red, blue 10px)', () => {
+                    const gradient = parse(context, 'repeating-radial-gradient(circle, red, blue 10px)');
+                    deepStrictEqual(gradient.type, CSSImageType.RADIAL_GRADIENT);
+                    deepStrictEqual((gradient as unknown as {repeating: boolean}).repeating, true);
+                });
+                it('-webkit-repeating-radial-gradient(center, red, blue 10px)', () => {
+                    const gradient = parse(context, '-webkit-repeating-radial-gradient(center, red, blue 10px)');
+                    deepStrictEqual(gradient.type, CSSImageType.RADIAL_GRADIENT);
+                    deepStrictEqual((gradient as unknown as {repeating: boolean}).repeating, true);
+                });
+                it('leaves non-repeating gradients unflagged', () =>
+                    deepStrictEqual('repeating' in parse(context, 'linear-gradient(red, blue)'), false));
+            });
         });
     });
 });

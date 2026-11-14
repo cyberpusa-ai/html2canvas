@@ -28,7 +28,13 @@ import {EffectTarget, IElementEffect, isClipEffect, isOpacityEffect, isTransform
 import {contains} from '../../core/bitwise';
 import {FEATURES} from '../../core/features';
 import {scaleFilter} from '../../css/property-descriptors/filter';
-import {calculateGradientDirection, calculateRadius, processColorStops} from '../../css/types/functions/gradient';
+import {
+    calculateGradientDirection,
+    calculateRadialPaintLength,
+    calculateRadius,
+    processColorStops,
+    processRepeatingColorStops
+} from '../../css/types/functions/gradient';
 import {FIFTY_PERCENT, getAbsoluteValue} from '../../css/types/length-percentage';
 import {TEXT_DECORATION_LINE} from '../../css/property-descriptors/text-decoration-line';
 import {FontMetrics} from '../font-metrics';
@@ -733,9 +739,10 @@ export class CanvasRenderer extends Renderer {
                     const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
                     const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
 
-                    processColorStops(backgroundImage.stops, lineLength).forEach((colorStop) =>
-                        gradient.addColorStop(colorStop.stop, asString(colorStop.color))
-                    );
+                    const colorStops = backgroundImage.repeating
+                        ? processRepeatingColorStops(backgroundImage.stops, lineLength)
+                        : processColorStops(backgroundImage.stops, lineLength);
+                    colorStops.forEach((colorStop) => gradient.addColorStop(colorStop.stop, asString(colorStop.color)));
 
                     ctx.fillStyle = gradient;
                     ctx.fillRect(0, 0, width, height);
@@ -754,9 +761,24 @@ export class CanvasRenderer extends Renderer {
 
                 const [rx, ry] = calculateRadius(backgroundImage, x, y, width, height);
                 if (rx > 0 && ry > 0) {
-                    const radialGradient = this.ctx.createRadialGradient(left + x, top + y, 0, left + x, top + y, rx);
+                    // A repeating gradient keeps repeating past its ending shape, so it is painted out to the
+                    // farthest corner. Its stops are sized along the gradient ray (0 to rx), as in CSS.
+                    const radius = backgroundImage.repeating
+                        ? Math.max(rx, calculateRadialPaintLength(x, y, width, height, rx, ry))
+                        : rx;
+                    const radialGradient = this.ctx.createRadialGradient(
+                        left + x,
+                        top + y,
+                        0,
+                        left + x,
+                        top + y,
+                        radius
+                    );
 
-                    processColorStops(backgroundImage.stops, rx * 2).forEach((colorStop) =>
+                    const colorStops = backgroundImage.repeating
+                        ? processRepeatingColorStops(backgroundImage.stops, rx, radius)
+                        : processColorStops(backgroundImage.stops, rx * 2);
+                    colorStops.forEach((colorStop) =>
                         radialGradient.addColorStop(colorStop.stop, asString(colorStop.color))
                     );
 

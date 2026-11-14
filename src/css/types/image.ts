@@ -49,6 +49,7 @@ export type GradientCorner = [LengthPercentage, LengthPercentage];
 
 interface ICSSGradientImage extends ICSSImage {
     stops: UnprocessedGradientColorStop[];
+    repeating?: boolean;
 }
 
 export interface CSSLinearGradientImage extends ICSSGradientImage {
@@ -105,6 +106,14 @@ export function isSupportedImage(value: CSSValue): boolean {
     );
 }
 
+const repeatingGradient =
+    (gradient: (context: Context, args: CSSValue[]) => CSSLinearGradientImage | CSSRadialGradientImage) =>
+    (context: Context, args: CSSValue[]): CSSLinearGradientImage | CSSRadialGradientImage => {
+        const image = gradient(context, args);
+        image.repeating = true;
+        return image;
+    };
+
 const SUPPORTED_IMAGE_FUNCTIONS: Record<string, (context: Context, args: CSSValue[]) => ICSSImage> = {
     'linear-gradient': linearGradient,
     '-moz-linear-gradient': prefixLinearGradient,
@@ -116,5 +125,15 @@ const SUPPORTED_IMAGE_FUNCTIONS: Record<string, (context: Context, args: CSSValu
     '-ms-radial-gradient': prefixRadialGradient,
     '-o-radial-gradient': prefixRadialGradient,
     '-webkit-radial-gradient': prefixRadialGradient,
-    '-webkit-gradient': webkitGradient
+    '-webkit-gradient': webkitGradient,
+    'repeating-linear-gradient': repeatingGradient(linearGradient),
+    '-moz-repeating-linear-gradient': repeatingGradient(prefixLinearGradient),
+    '-ms-repeating-linear-gradient': repeatingGradient(prefixLinearGradient),
+    '-o-repeating-linear-gradient': repeatingGradient(prefixLinearGradient),
+    '-webkit-repeating-linear-gradient': repeatingGradient(prefixLinearGradient),
+    'repeating-radial-gradient': repeatingGradient(radialGradient),
+    '-moz-repeating-radial-gradient': repeatingGradient(prefixRadialGradient),
+    '-ms-repeating-radial-gradient': repeatingGradient(prefixRadialGradient),
+    '-o-repeating-radial-gradient': repeatingGradient(prefixRadialGradient),
+    '-webkit-repeating-radial-gradient': repeatingGradient(prefixRadialGradient)
 };
