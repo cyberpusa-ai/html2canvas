@@ -15,7 +15,7 @@ export class FontMetrics {
         this._document = document;
     }
 
-    private parseMetrics(fontFamily: string, fontSize: string): FontMetric {
+    private parseMetrics(fontFamily: string, fontSize: string, fontStyle: string): FontMetric {
         const container = this._document.createElement('div');
         const img = this._document.createElement('img');
         const span = this._document.createElement('span');
@@ -25,6 +25,7 @@ export class FontMetrics {
         container.style.visibility = 'hidden';
         container.style.fontFamily = fontFamily;
         container.style.fontSize = fontSize;
+        container.style.fontStyle = fontStyle;
         container.style.margin = '0';
         container.style.padding = '0';
         container.style.whiteSpace = 'nowrap';
@@ -47,6 +48,7 @@ export class FontMetrics {
         span.style.display = 'inline';
         span.style.fontFamily = fontFamily;
         span.style.fontSize = fontSize;
+        span.style.fontStyle = fontStyle;
         span.style.border = '0';
         span.style.margin = '0';
         span.style.padding = '0';
@@ -70,10 +72,10 @@ export class FontMetrics {
 
         return {baseline, middle};
     }
-    getMetrics(fontFamily: string, fontSize: string): FontMetric {
-        const key = `${fontFamily} ${fontSize}`;
+    getMetrics(fontFamily: string, fontSize: string, fontStyle = 'normal'): FontMetric {
+        const key = `${fontStyle} ${fontFamily} ${fontSize}`;
         if (typeof this._data[key] === 'undefined') {
-            this._data[key] = this.parseMetrics(fontFamily, fontSize);
+            this._data[key] = this.parseMetrics(fontFamily, fontSize, fontStyle);
         }
 
         return this._data[key];

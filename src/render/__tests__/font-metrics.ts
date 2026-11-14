@@ -33,4 +33,20 @@ describe('FontMetrics', () => {
         strictEqual(span.style.border, '0px');
         strictEqual(span.style.verticalAlign, 'baseline');
     });
+
+    it('measures with the font style applied to the probe elements', () => {
+        new FontMetrics(document).getMetrics('Arial', '16px', 'italic');
+        const span = probes.filter((e) => e.tagName === 'SPAN')[0];
+        strictEqual(span.style.fontStyle, 'italic');
+        const container = probes.filter((e) => e.tagName === 'DIV')[0];
+        strictEqual(container.style.fontStyle, 'italic');
+    });
+
+    it('caches metrics separately per font style', () => {
+        const metrics = new FontMetrics(document);
+        const normal = metrics.getMetrics('Arial', '16px', 'normal');
+        const italic = metrics.getMetrics('Arial', '16px', 'italic');
+        strictEqual(normal === italic, false);
+        strictEqual(metrics.getMetrics('Arial', '16px', 'italic'), italic);
+    });
 });

@@ -69,7 +69,7 @@ describe('CanvasRenderer', () => {
     it('renders input text with the full font string and measures metrics by family and size', async () => {
         const input = document.createElement('input');
         input.value = 'hello';
-        mockComputedStyle({fontFamily: 'Arial', fontSize: '20px', fontVariant: 'small-caps'});
+        mockComputedStyle({fontFamily: 'Arial', fontSize: '20px', fontStyle: 'italic', fontVariant: 'small-caps'});
 
         const {canvas, fonts} = createMockCanvas();
         const {context, renderer} = createRenderer(canvas);
@@ -79,7 +79,8 @@ describe('CanvasRenderer', () => {
         strictEqual(getMetrics.mock.calls.length, 1);
         strictEqual(getMetrics.mock.calls[0][0], 'Arial');
         strictEqual(getMetrics.mock.calls[0][1], '20px');
-        strictEqual(fonts[fonts.length - 1], 'normal small-caps 400 20px Arial');
+        strictEqual(getMetrics.mock.calls[0][2], 'italic');
+        strictEqual(fonts[fonts.length - 1], 'italic small-caps 400 20px Arial');
     });
 
     it('renders textarea values on separate lines, wrapped to the content box', async () => {
