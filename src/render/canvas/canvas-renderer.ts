@@ -53,6 +53,7 @@ import {Renderer} from '../renderer';
 import {Context} from '../../core/context';
 import {DIRECTION} from '../../css/property-descriptors/direction';
 import {calculateObjectFitBounds} from '../object-fit';
+import {calculateInlineFragmentBorders, calculateInlineFragmentClipBoxes} from '../inline-fragments';
 
 export type RenderConfigurations = RenderOptions & {
     backgroundColor: Color | null;
@@ -293,7 +294,12 @@ export class CanvasRenderer extends Renderer {
                                     this.ctx.shadowOffsetY = textShadow.offsetY.number * this.options.scale;
                                     this.ctx.shadowBlur = textShadow.blur.number;
 
-                                    this.renderTextWithLetterSpacing(text, styles.letterSpacing, baseline, styles.direction);
+                                    this.renderTextWithLetterSpacing(
+                                        text,
+                                        styles.letterSpacing,
+                                        baseline,
+                                        styles.direction
+                                    );
                                 });
 
                             this.ctx.shadowColor = '';
@@ -844,6 +850,35 @@ export class CanvasRenderer extends Renderer {
             getBackgroundValueForIndex(styles.backgroundClip, 0),
             paint.curves
         );
+
+        // an inline element that wraps paints its background and borders on each line box, not on its bounding box
+        const fragments = paint.container.lineBounds;
+        if (fragments.length > 1) {
+            if (hasBackground) {
+                this.ctx.save();
+                this.ctx.beginPath();
+                calculateInlineFragmentClipBoxes(
+                    fragments,
+                    styles,
+                    getBackgroundValueForIndex(styles.backgroundClip, 0)
+                ).forEach((box) => this.ctx.rect(box.left, box.top, box.width, box.height));
+                this.ctx.clip();
+
+                if (!isTransparent(styles.backgroundColor)) {
+                    this.ctx.fillStyle = asString(styles.backgroundColor);
+                    this.ctx.fill();
+                }
+
+                await this.renderBackgroundImage(paint.container);
+                this.ctx.restore();
+            }
+
+            calculateInlineFragmentBorders(fragments, styles).forEach((border) => {
+                this.ctx.fillStyle = asString(border.color);
+                this.ctx.fillRect(border.bounds.left, border.bounds.top, border.bounds.width, border.bounds.height);
+            });
+            return;
+        }
 
         if (hasBackground || styles.boxShadow.length) {
             this.ctx.save();

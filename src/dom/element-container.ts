@@ -1,9 +1,10 @@
 import {CSSParsedDeclaration} from '../css/index';
 import {TextContainer} from './text-container';
-import {Bounds, parseBounds} from '../css/layout/bounds';
+import {Bounds, parseBounds, parseLineBounds} from '../css/layout/bounds';
 import {isHTMLElementNode} from './node-parser';
 import {Context} from '../core/context';
 import {DebuggerType, isDebugging} from '../core/debugger';
+import {DISPLAY} from '../css/property-descriptors/display';
 
 export const enum FLAGS {
     CREATES_STACKING_CONTEXT = 1 << 1,
@@ -17,6 +18,8 @@ export class ElementContainer {
     readonly textNodes: TextContainer[] = [];
     readonly elements: ElementContainer[] = [];
     bounds: Bounds;
+    // line box fragments of an inline element that wraps across lines; empty when it fits on one line
+    lineBounds: Bounds[] = [];
     flags = 0;
 
     constructor(protected readonly context: Context, element: Element) {
@@ -38,6 +41,13 @@ export class ElementContainer {
         }
 
         this.bounds = parseBounds(this.context, element);
+
+        if (this.styles.display === DISPLAY.INLINE) {
+            const lineBounds = parseLineBounds(this.context, element);
+            if (lineBounds.length > 1) {
+                this.lineBounds = lineBounds;
+            }
+        }
 
         if (isDebugging(element, DebuggerType.RENDER)) {
             this.flags |= FLAGS.DEBUG_RENDER;

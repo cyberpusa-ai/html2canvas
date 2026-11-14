@@ -610,4 +610,117 @@ describe('CanvasRenderer', () => {
             strictEqual(calls.filter(([name]) => name === 'drawImage').length, 0);
         });
     });
+
+    describe('inline elements that wrap across lines', () => {
+        type Call = [string, unknown[]];
+        const recordingCanvas = (calls: Call[]): HTMLCanvasElement => {
+            const ctx = new Proxy({} as {[key: string]: unknown}, {
+                get: (target, prop: string) =>
+                    prop in target
+                        ? target[prop]
+                        : (...args: unknown[]) => {
+                              calls.push([prop, args]);
+                              return {width: 0};
+                          },
+                set: (target, prop: string, value) => {
+                    calls.push([prop, [value]]);
+                    target[prop] = value;
+                    return true;
+                }
+            });
+            return {getContext: () => ctx} as unknown as HTMLCanvasElement;
+        };
+
+        const createSpan = (rects: Array<[number, number, number, number]>): HTMLSpanElement => {
+            const span = document.createElement('span');
+            span.getBoundingClientRect = () => ({left: 0, top: 0, width: 200, height: 40} as DOMRect);
+            span.getClientRects = () =>
+                rects.map(([left, top, width, height]) => ({left, top, width, height})) as unknown as DOMRectList;
+            return span;
+        };
+
+        it('reads one bounds per line box for display: inline', () => {
+            mockComputedStyle({display: 'inline'});
+            const {context} = createRenderer(createMockCanvas().canvas);
+            const container = new ElementContainer(
+                context,
+                createSpan([
+                    [100, 0, 100, 20],
+                    [0, 20, 0, 20],
+                    [0, 20, 50, 20]
+                ])
+            );
+            deepStrictEqual(
+                container.lineBounds.map((b) => [b.left, b.top, b.width, b.height]),
+                [
+                    [100, 0, 100, 20],
+                    [0, 20, 50, 20]
+                ]
+            );
+        });
+
+        it('keeps no line bounds for inline elements on one line or inline-block elements', () => {
+            const {context} = createRenderer(createMockCanvas().canvas);
+            mockComputedStyle({display: 'inline'});
+            strictEqual(new ElementContainer(context, createSpan([[0, 0, 100, 20]])).lineBounds.length, 0);
+            mockComputedStyle({display: 'inline-block'});
+            const rects: Array<[number, number, number, number]> = [
+                [100, 0, 100, 20],
+                [0, 20, 50, 20]
+            ];
+            strictEqual(new ElementContainer(context, createSpan(rects)).lineBounds.length, 0);
+        });
+
+        it('fills the background and borders per line box instead of over the bounding box', async () => {
+            mockComputedStyle({
+                display: 'inline',
+                backgroundColor: 'yellow',
+                borderTopWidth: '1px',
+                borderTopStyle: 'solid',
+                borderTopColor: 'red'
+            });
+            const calls: Call[] = [];
+            const {context, renderer} = createRenderer(recordingCanvas(calls));
+            const container = new ElementContainer(
+                context,
+                createSpan([
+                    [100, 0, 100, 20],
+                    [0, 20, 50, 20]
+                ])
+            );
+            await renderer.renderNodeBackgroundAndBorders(new ElementPaint(container, null));
+
+            deepStrictEqual(
+                calls.filter(([name]) => name === 'rect').map(([, args]) => args),
+                [
+                    [100, 0, 100, 20],
+                    [0, 20, 50, 20]
+                ]
+            );
+            const clip = calls.findIndex(([name]) => name === 'clip');
+            const fill = calls.findIndex(([name]) => name === 'fill');
+            strictEqual(clip > 0 && fill > clip, true);
+            // the bounding box is never traced as a path
+            strictEqual(calls.filter(([name]) => name === 'moveTo').length, 0);
+            deepStrictEqual(
+                calls.filter(([name]) => name === 'fillRect').map(([, args]) => args),
+                [
+                    [100, 0, 100, 1],
+                    [0, 20, 50, 1]
+                ]
+            );
+        });
+
+        it('paints the bounding box when the inline element fits on one line', async () => {
+            mockComputedStyle({display: 'inline', backgroundColor: 'yellow'});
+            const calls: Call[] = [];
+            const {context, renderer} = createRenderer(recordingCanvas(calls));
+            const container = new ElementContainer(context, createSpan([[0, 0, 200, 40]]));
+            await renderer.renderNodeBackgroundAndBorders(new ElementPaint(container, null));
+
+            strictEqual(calls.filter(([name]) => name === 'rect').length, 0);
+            strictEqual(calls.filter(([name]) => name === 'moveTo').length > 0, true);
+            strictEqual(calls.filter(([name]) => name === 'fill').length, 1);
+        });
+    });
 });
