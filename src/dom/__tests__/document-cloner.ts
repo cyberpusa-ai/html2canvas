@@ -1,5 +1,5 @@
 import {strictEqual} from 'assert';
-import {copyCSSStyles, DocumentCloner} from '../document-cloner';
+import {CloneOptions, copyCSSStyles, DocumentCloner} from '../document-cloner';
 import {Context} from '../../core/context';
 import {Cache} from '../../core/cache-storage';
 import {Bounds} from '../../css/layout/bounds';
@@ -140,6 +140,33 @@ describe('DocumentCloner', () => {
         strictEqual(onclone.mock.calls.length, 1);
         strictEqual(clonedImage.getAttribute('href'), 'data:image/png;base64,AAAA');
         strictEqual(document.getElementsByTagName('image')[0].getAttribute('href'), 'http://example.com/a.png');
+        document.body.innerHTML = '';
+    });
+
+    it('waits for a promise returned by onclone before resolving (#3162)', async () => {
+        document.body.innerHTML = '<div id="target"></div>';
+        let resolveOnclone: () => void = () => undefined;
+        const pending = new Promise<void>((resolve) => (resolveOnclone = resolve));
+        let done = false;
+        // the declared return type must accept a promise, so linters don't flag async callbacks
+        const onclone: CloneOptions['onclone'] = (doc): ReturnType<NonNullable<CloneOptions['onclone']>> =>
+            pending.then(() => {
+                (doc.getElementById('target') as HTMLElement).setAttribute('data-onclone', 'done');
+            });
+        const windowBounds = new Bounds(0, 0, 800, 600);
+        const context = new Context({logging: false, imageTimeout: 0, useCORS: false, allowTaint: false}, windowBounds);
+        const cloner = new DocumentCloner(context, document.body, {inlineImages: false, copyStyles: false, onclone});
+        const result = cloner.toIFrame(document, windowBounds).then((iframe) => {
+            done = true;
+            return iframe;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        strictEqual(done, false);
+        resolveOnclone();
+        const iframe = await result;
+        const target = (iframe.contentWindow as Window).document.getElementById('target') as HTMLElement;
+        strictEqual(target.getAttribute('data-onclone'), 'done');
+        strictEqual(document.getElementById('target')?.hasAttribute('data-onclone'), false);
         document.body.innerHTML = '';
     });
 
