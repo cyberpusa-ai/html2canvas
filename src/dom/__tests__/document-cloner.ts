@@ -1,5 +1,5 @@
 import {strictEqual} from 'assert';
-import {DocumentCloner} from '../document-cloner';
+import {copyCSSStyles, DocumentCloner} from '../document-cloner';
 import {Context} from '../../core/context';
 import {Bounds} from '../../css/layout/bounds';
 
@@ -169,6 +169,38 @@ describe('DocumentCloner', () => {
 
         it('does not find a detached element', () => {
             strictEqual(findClone(document.createElement('div')), undefined);
+        });
+    });
+    describe('copyCSSStyles', () => {
+        const computedStyle = (values: {[property: string]: string}): CSSStyleDeclaration => {
+            const properties = Object.keys(values);
+            return {
+                length: properties.length,
+                item: (i: number) => properties[i],
+                getPropertyValue: (property: string) => values[property] || ''
+            } as unknown as CSSStyleDeclaration;
+        };
+
+        it('copies regular properties but skips custom properties (#3249)', () => {
+            const target = document.createElement('div');
+            const setProperty = jest.spyOn(target.style, 'setProperty');
+            copyCSSStyles(
+                computedStyle({
+                    color: 'rgb(255, 0, 0)',
+                    '--tw-ring-color': 'blue',
+                    'padding-top': '2px',
+                    '--x': '1px',
+                    content: '"x"'
+                }),
+                target
+            );
+            strictEqual(target.style.getPropertyValue('color'), 'rgb(255, 0, 0)');
+            strictEqual(target.style.getPropertyValue('padding-top'), '2px');
+            strictEqual(
+                setProperty.mock.calls.some(([property]) => property.indexOf('--') === 0 || property === 'content'),
+                false
+            );
+            strictEqual(setProperty.mock.calls.length, 2);
         });
     });
 });
