@@ -29,6 +29,17 @@ export class FontMetrics {
         container.style.margin = '0';
         container.style.padding = '0';
         container.style.whiteSpace = 'nowrap';
+        // page css (e.g. body {display: flex} or div {float: left}) must not change the measuring context
+        container.style.display = 'block';
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.float = 'none';
+        container.style.width = 'auto';
+        container.style.height = 'auto';
+        container.style.border = '0';
+        container.style.lineHeight = 'normal';
+        container.style.verticalAlign = 'baseline';
 
         body.appendChild(container);
 
@@ -44,6 +55,8 @@ export class FontMetrics {
         img.style.margin = '0';
         img.style.padding = '0';
         img.style.verticalAlign = 'baseline';
+        img.style.position = 'static';
+        img.style.float = 'none';
 
         span.style.display = 'inline';
         span.style.fontFamily = fontFamily;
@@ -53,6 +66,10 @@ export class FontMetrics {
         span.style.margin = '0';
         span.style.padding = '0';
         span.style.verticalAlign = 'baseline';
+        span.style.position = 'static';
+        span.style.float = 'none';
+        span.style.height = 'auto';
+        span.style.lineHeight = 'normal';
 
         span.appendChild(this._document.createTextNode(SAMPLE_TEXT));
         container.appendChild(span);
@@ -66,7 +83,8 @@ export class FontMetrics {
         container.style.lineHeight = 'normal';
         img.style.verticalAlign = 'super';
 
-        const middle = img.offsetTop - container.offsetTop + 2;
+        // the container is positioned, so it is the offsetParent of the image
+        const middle = img.offsetTop + 2;
 
         body.removeChild(container);
 
