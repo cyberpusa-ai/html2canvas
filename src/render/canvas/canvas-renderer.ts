@@ -53,6 +53,7 @@ import {Renderer} from '../renderer';
 import {Context} from '../../core/context';
 import {DIRECTION} from '../../css/property-descriptors/direction';
 import {calculateObjectFitBounds} from '../object-fit';
+import {calculateInlineFragments} from '../inline-fragments';
 
 export type RenderConfigurations = RenderOptions & {
     backgroundColor: Color | null;
@@ -830,7 +831,25 @@ export class CanvasRenderer extends Renderer {
 
     async renderNodeBackgroundAndBorders(paint: ElementPaint): Promise<void> {
         this.applyEffects(paint.getEffects(EffectTarget.BACKGROUND_BORDERS));
-        const styles = paint.container.styles;
+
+        // an inline element that wraps paints its background, shadows and borders on each line box,
+        // not on its bounding box
+        const lineBounds = paint.container.lineBounds;
+        if (lineBounds.length > 1) {
+            for (const fragment of calculateInlineFragments(lineBounds, paint.container.styles)) {
+                await this.renderBoxBackgroundAndBorders(paint.container, fragment.styles, new BoundCurves(fragment));
+            }
+            return;
+        }
+
+        await this.renderBoxBackgroundAndBorders(paint.container, paint.container.styles, paint.curves);
+    }
+
+    private async renderBoxBackgroundAndBorders(
+        container: ElementContainer,
+        styles: CSSParsedDeclaration,
+        curves: BoundCurves
+    ): Promise<void> {
         const hasBackground = !isTransparent(styles.backgroundColor) || styles.backgroundImage.length;
 
         const borders = [
@@ -842,7 +861,7 @@ export class CanvasRenderer extends Renderer {
 
         const backgroundPaintingArea = calculateBackgroundCurvedPaintingArea(
             getBackgroundValueForIndex(styles.backgroundClip, 0),
-            paint.curves
+            curves
         );
 
         if (hasBackground || styles.boxShadow.length) {
@@ -855,7 +874,7 @@ export class CanvasRenderer extends Renderer {
                 this.ctx.fill();
             }
 
-            await this.renderBackgroundImage(paint.container);
+            await this.renderBackgroundImage(container);
 
             this.ctx.restore();
 
@@ -864,7 +883,7 @@ export class CanvasRenderer extends Renderer {
                 .reverse()
                 .forEach((shadow) => {
                     this.ctx.save();
-                    const borderBoxArea = calculateBorderBoxPath(paint.curves);
+                    const borderBoxArea = calculateBorderBoxPath(curves);
                     const maskOffset = shadow.inset ? 0 : MASK_OFFSET;
                     const shadowPaintingArea = transformPath(
                         borderBoxArea,
@@ -899,25 +918,13 @@ export class CanvasRenderer extends Renderer {
         for (const border of borders) {
             if (border.style !== BORDER_STYLE.NONE && !isTransparent(border.color) && border.width > 0) {
                 if (border.style === BORDER_STYLE.DASHED) {
-                    await this.renderDashedDottedBorder(
-                        border.color,
-                        border.width,
-                        side,
-                        paint.curves,
-                        BORDER_STYLE.DASHED
-                    );
+                    await this.renderDashedDottedBorder(border.color, border.width, side, curves, BORDER_STYLE.DASHED);
                 } else if (border.style === BORDER_STYLE.DOTTED) {
-                    await this.renderDashedDottedBorder(
-                        border.color,
-                        border.width,
-                        side,
-                        paint.curves,
-                        BORDER_STYLE.DOTTED
-                    );
+                    await this.renderDashedDottedBorder(border.color, border.width, side, curves, BORDER_STYLE.DOTTED);
                 } else if (border.style === BORDER_STYLE.DOUBLE) {
-                    await this.renderDoubleBorder(border.color, border.width, side, paint.curves);
+                    await this.renderDoubleBorder(border.color, border.width, side, curves);
                 } else {
-                    await this.renderSolidBorder(border.color, side, paint.curves);
+                    await this.renderSolidBorder(border.color, side, curves);
                 }
             }
             side++;

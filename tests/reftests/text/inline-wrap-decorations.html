@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Wrapped inline elements with box-shadow, border styles and border-radius</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="../../test.js"></script>
+        <style>
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+        }
+        div {
+            width: 220px;
+            margin: 10px;
+            line-height: 32px;
+        }
+        span {
+            background-color: yellow;
+            padding: 2px 6px;
+        }
+        .shadow {
+            box-shadow: 3px 3px 4px rgba(0, 0, 0, 0.6);
+        }
+        .dotted {
+            background-color: transparent;
+            border-bottom: 2px dotted blue;
+        }
+        .dashed {
+            border: 2px dashed red;
+        }
+        .double {
+            border: 6px double green;
+        }
+        .radius {
+            border: 2px solid purple;
+            border-radius: 8px;
+        }
+        </style>
+    </head>
+    <body>
+        <div>Text before <span class="shadow">a span with a box shadow that wraps over lines</span> after.</div>
+        <div>Text before <span class="dotted">a link with a dotted underline that wraps</span> after.</div>
+        <div>Text before <span class="dashed">a span with a dashed border that wraps over lines</span> after.</div>
+        <div>Text before <span class="double">a span with a double border that wraps</span> after.</div>
+        <div>Text before <span class="radius">a span with rounded corners that wraps over lines</span> after.</div>
+    </body>
+</html>

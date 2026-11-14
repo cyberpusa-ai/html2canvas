@@ -35,6 +35,20 @@ export const parseBounds = (context: Context, node: Element): Bounds => {
     return Bounds.fromClientRect(context, node.getBoundingClientRect());
 };
 
+export const parseLineBounds = (context: Context, node: Element): Bounds[] => {
+    const lineBounds: Bounds[] = [];
+    if (typeof node.getClientRects !== 'function') {
+        return lineBounds;
+    }
+    const rects = node.getClientRects();
+    for (let i = 0; i < rects.length; i++) {
+        if (rects[i].width > 0 && rects[i].height > 0) {
+            lineBounds.push(Bounds.fromClientRect(context, rects[i]));
+        }
+    }
+    return lineBounds;
+};
+
 export const parseDocumentSize = (document: Document): Bounds => {
     const body = document.body;
     const documentElement = document.documentElement;

@@ -610,4 +610,181 @@ describe('CanvasRenderer', () => {
             strictEqual(calls.filter(([name]) => name === 'drawImage').length, 0);
         });
     });
+
+    describe('inline elements that wrap across lines', () => {
+        type Call = [string, unknown[]];
+        const recordingCanvas = (calls: Call[]): HTMLCanvasElement => {
+            const ctx = new Proxy({} as {[key: string]: unknown}, {
+                get: (target, prop: string) =>
+                    prop in target
+                        ? target[prop]
+                        : (...args: unknown[]) => {
+                              calls.push([prop, args]);
+                              return {width: 0};
+                          },
+                set: (target, prop: string, value) => {
+                    calls.push([prop, [value]]);
+                    target[prop] = value;
+                    return true;
+                }
+            });
+            return {getContext: () => ctx} as unknown as HTMLCanvasElement;
+        };
+
+        const createSpan = (rects: Array<[number, number, number, number]>): HTMLSpanElement => {
+            const span = document.createElement('span');
+            span.getBoundingClientRect = () => ({left: 0, top: 0, width: 200, height: 40} as DOMRect);
+            span.getClientRects = () =>
+                rects.map(([left, top, width, height]) => ({left, top, width, height})) as unknown as DOMRectList;
+            return span;
+        };
+
+        it('reads one bounds per line box for display: inline', () => {
+            mockComputedStyle({display: 'inline'});
+            const {context} = createRenderer(createMockCanvas().canvas);
+            const container = new ElementContainer(
+                context,
+                createSpan([
+                    [100, 0, 100, 20],
+                    [0, 20, 0, 20],
+                    [0, 20, 50, 20]
+                ])
+            );
+            deepStrictEqual(
+                container.lineBounds.map((b) => [b.left, b.top, b.width, b.height]),
+                [
+                    [100, 0, 100, 20],
+                    [0, 20, 50, 20]
+                ]
+            );
+        });
+
+        it('keeps no line bounds for inline elements on one line or inline-block elements', () => {
+            const {context} = createRenderer(createMockCanvas().canvas);
+            mockComputedStyle({display: 'inline'});
+            strictEqual(new ElementContainer(context, createSpan([[0, 0, 100, 20]])).lineBounds.length, 0);
+            mockComputedStyle({display: 'inline-block'});
+            const rects: Array<[number, number, number, number]> = [
+                [100, 0, 100, 20],
+                [0, 20, 50, 20]
+            ];
+            strictEqual(new ElementContainer(context, createSpan(rects)).lineBounds.length, 0);
+        });
+
+        const twoLines: Array<[number, number, number, number]> = [
+            [100, 0, 100, 20],
+            [0, 20, 50, 20]
+        ];
+        const renderWrapped = async (style: {[key: string]: string}): Promise<Call[]> => {
+            mockComputedStyle({display: 'inline', ...style});
+            const calls: Call[] = [];
+            const {context, renderer} = createRenderer(recordingCanvas(calls));
+            const container = new ElementContainer(context, createSpan(twoLines));
+            await renderer.renderNodeBackgroundAndBorders(new ElementPaint(container, null));
+            return calls;
+        };
+        const argsOf = (calls: Call[], name: string) => calls.filter(([n]) => n === name).map(([, args]) => args);
+        // the first point of every traced path, i.e. the top left corner of each painted box
+        const pathStarts = (calls: Call[]) => argsOf(calls, 'moveTo');
+
+        it('fills the background per line box instead of over the bounding box', async () => {
+            const calls = await renderWrapped({backgroundColor: 'yellow'});
+            deepStrictEqual(pathStarts(calls), [
+                [100, 0],
+                [0, 20]
+            ]);
+            strictEqual(argsOf(calls, 'fill').length, 2);
+            // the bounding box (0, 0, 200, 40) is never traced
+            strictEqual(
+                argsOf(calls, 'lineTo').some(([x, y]) => x === 200 && y === 40),
+                false
+            );
+        });
+
+        it('paints solid borders through the regular border path, without the cut start and end edges', async () => {
+            const calls = await renderWrapped({
+                borderTopWidth: '1px',
+                borderTopStyle: 'solid',
+                borderTopColor: 'red',
+                borderLeftWidth: '3px',
+                borderLeftStyle: 'solid',
+                borderLeftColor: 'blue',
+                borderRightWidth: '3px',
+                borderRightStyle: 'solid',
+                borderRightColor: 'green'
+            });
+            strictEqual(argsOf(calls, 'fillRect').length, 0);
+            // first line: top + left, second line: top + right
+            deepStrictEqual(
+                argsOf(calls, 'fillStyle').map(([c]) => c),
+                ['rgb(255,0,0)', 'rgb(0,0,255)', 'rgb(255,0,0)', 'rgb(0,128,0)']
+            );
+        });
+
+        it('keeps dotted, dashed and double border styles on each line box', async () => {
+            const dotted = await renderWrapped({
+                borderBottomWidth: '1px',
+                borderBottomStyle: 'dotted',
+                borderBottomColor: 'red'
+            });
+            strictEqual(argsOf(dotted, 'fillRect').length, 0);
+            strictEqual(argsOf(dotted, 'stroke').length, 2);
+            strictEqual(argsOf(dotted, 'setLineDash').filter(([dash]) => (dash as number[]).length > 0).length, 2);
+
+            const dashed = await renderWrapped({
+                borderBottomWidth: '2px',
+                borderBottomStyle: 'dashed',
+                borderBottomColor: 'red'
+            });
+            strictEqual(argsOf(dashed, 'stroke').length, 2);
+            strictEqual(argsOf(dashed, 'setLineDash').filter(([dash]) => (dash as number[]).length > 0).length, 2);
+
+            const double = await renderWrapped({
+                borderBottomWidth: '6px',
+                borderBottomStyle: 'double',
+                borderBottomColor: 'red'
+            });
+            // an outer and an inner line on each of the two line boxes
+            strictEqual(argsOf(double, 'fill').length, 4);
+        });
+
+        it('paints box-shadow on each line box', async () => {
+            const calls = await renderWrapped({backgroundColor: 'yellow', boxShadow: '2px 2px 4px rgb(0, 0, 0)'});
+            deepStrictEqual(
+                argsOf(calls, 'shadowColor')
+                    .map(([c]) => c)
+                    .filter((c) => c !== ''),
+                ['rgb(0,0,0)', 'rgb(0,0,0)']
+            );
+            strictEqual(argsOf(calls, 'shadowBlur').filter(([b]) => b === 4).length, 2);
+        });
+
+        it('rounds only the outer corners of the first and last line boxes', async () => {
+            const calls = await renderWrapped({
+                backgroundColor: 'yellow',
+                borderTopLeftRadius: '5px',
+                borderTopRightRadius: '5px',
+                borderBottomRightRadius: '5px',
+                borderBottomLeftRadius: '5px'
+            });
+            // left two corners on the first line box, right two corners on the second
+            strictEqual(argsOf(calls, 'bezierCurveTo').length, 4);
+            const [firstStart, secondStart] = pathStarts(calls);
+            // the first box starts after its top-left curve, the second at its square top-left corner
+            deepStrictEqual(firstStart, [100, 5]);
+            deepStrictEqual(secondStart, [0, 20]);
+        });
+
+        it('paints the bounding box when the inline element fits on one line', async () => {
+            mockComputedStyle({display: 'inline', backgroundColor: 'yellow'});
+            const calls: Call[] = [];
+            const {context, renderer} = createRenderer(recordingCanvas(calls));
+            const container = new ElementContainer(context, createSpan([[0, 0, 200, 40]]));
+            await renderer.renderNodeBackgroundAndBorders(new ElementPaint(container, null));
+
+            strictEqual(calls.filter(([name]) => name === 'rect').length, 0);
+            strictEqual(calls.filter(([name]) => name === 'moveTo').length > 0, true);
+            strictEqual(calls.filter(([name]) => name === 'fill').length, 1);
+        });
+    });
 });

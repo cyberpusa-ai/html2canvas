@@ -30,7 +30,7 @@ export class BoundCurves {
     readonly bottomRightContentBox: Path;
     readonly bottomLeftContentBox: Path;
 
-    constructor(element: ElementContainer) {
+    constructor(element: Pick<ElementContainer, 'styles' | 'bounds'>) {
         const styles = element.styles;
         const bounds = element.bounds;
 
