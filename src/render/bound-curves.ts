@@ -3,6 +3,8 @@ import {getAbsoluteValue, getAbsoluteValueForTuple} from '../css/types/length-pe
 import {Vector} from './vector';
 import {BezierCurve} from './bezier-curve';
 import {Path} from './path';
+import {Bounds} from '../css/layout/bounds';
+import {CSSParsedDeclaration} from '../css';
 
 export class BoundCurves {
     readonly topLeftBorderDoubleOuterBox: Path;
@@ -34,28 +36,7 @@ export class BoundCurves {
         const styles = element.styles;
         const bounds = element.bounds;
 
-        let [tlh, tlv] = getAbsoluteValueForTuple(styles.borderTopLeftRadius, bounds.width, bounds.height);
-        let [trh, trv] = getAbsoluteValueForTuple(styles.borderTopRightRadius, bounds.width, bounds.height);
-        let [brh, brv] = getAbsoluteValueForTuple(styles.borderBottomRightRadius, bounds.width, bounds.height);
-        let [blh, blv] = getAbsoluteValueForTuple(styles.borderBottomLeftRadius, bounds.width, bounds.height);
-
-        const factors = [];
-        factors.push((tlh + trh) / bounds.width);
-        factors.push((blh + brh) / bounds.width);
-        factors.push((tlv + blv) / bounds.height);
-        factors.push((trv + brv) / bounds.height);
-        const maxFactor = Math.max(...factors);
-
-        if (maxFactor > 1) {
-            tlh /= maxFactor;
-            tlv /= maxFactor;
-            trh /= maxFactor;
-            trv /= maxFactor;
-            brh /= maxFactor;
-            brv /= maxFactor;
-            blh /= maxFactor;
-            blv /= maxFactor;
-        }
+        const [tlh, tlv, trh, trv, brh, brv, blh, blv] = getBorderRadii(styles, bounds);
 
         const topWidth = bounds.width - trh;
         const rightHeight = bounds.height - brv;
@@ -317,6 +298,72 @@ export class BoundCurves {
                   );
     }
 }
+
+// [tlh, tlv, trh, trv, brh, brv, blh, blv], scaled down so that adjacent radii don't overlap
+const constrainRadii = (radii: number[], width: number, height: number): number[] => {
+    const [tlh, tlv, trh, trv, brh, brv, blh, blv] = radii;
+    const maxFactor = Math.max((tlh + trh) / width, (blh + brh) / width, (tlv + blv) / height, (trv + brv) / height);
+    return maxFactor > 1 ? radii.map((radius) => radius / maxFactor) : radii;
+};
+
+const getBorderRadii = (styles: CSSParsedDeclaration, bounds: Bounds): number[] =>
+    constrainRadii(
+        [
+            ...getAbsoluteValueForTuple(styles.borderTopLeftRadius, bounds.width, bounds.height),
+            ...getAbsoluteValueForTuple(styles.borderTopRightRadius, bounds.width, bounds.height),
+            ...getAbsoluteValueForTuple(styles.borderBottomRightRadius, bounds.width, bounds.height),
+            ...getAbsoluteValueForTuple(styles.borderBottomLeftRadius, bounds.width, bounds.height)
+        ],
+        bounds.width,
+        bounds.height
+    );
+
+// https://drafts.csswg.org/css-backgrounds/#shadow-shape
+// a spread grows (or shrinks) each corner radius by the spread distance, but small radii grow less
+// so that nearly sharp corners stay nearly sharp, and sharp corners stay sharp
+export const spreadRadius = (radius: number, spread: number): number => {
+    if (radius <= 0) {
+        return 0;
+    }
+    if (spread <= 0) {
+        return Math.max(0, radius + spread);
+    }
+    const ratio = radius / spread;
+    return radius + spread * (ratio < 1 ? 1 + Math.pow(ratio - 1, 3) : 1);
+};
+
+// the border box outline of a box-shadow: moved by its offset and grown by its spread
+// (a negative spread shrinks it, which is also how inset shadows use it)
+export const calculateShadowPath = (
+    element: Pick<ElementContainer, 'styles' | 'bounds'>,
+    offsetX: number,
+    offsetY: number,
+    spread: number
+): Path[] => {
+    const bounds = element.bounds;
+    const width = Math.max(0, bounds.width + spread * 2);
+    const height = Math.max(0, bounds.height + spread * 2);
+    const left = bounds.left + offsetX + (bounds.width - width) / 2;
+    const top = bounds.top + offsetY + (bounds.height - height) / 2;
+    const [tlh, tlv, trh, trv, brh, brv, blh, blv] = constrainRadii(
+        getBorderRadii(element.styles, bounds).map((radius) => spreadRadius(radius, spread)),
+        width,
+        height
+    );
+
+    return [
+        tlh > 0 || tlv > 0 ? getCurvePoints(left, top, tlh, tlv, CORNER.TOP_LEFT) : new Vector(left, top),
+        trh > 0 || trv > 0
+            ? getCurvePoints(left + width - trh, top, trh, trv, CORNER.TOP_RIGHT)
+            : new Vector(left + width, top),
+        brh > 0 || brv > 0
+            ? getCurvePoints(left + width - brh, top + height - brv, brh, brv, CORNER.BOTTOM_RIGHT)
+            : new Vector(left + width, top + height),
+        blh > 0 || blv > 0
+            ? getCurvePoints(left, top + height - blv, blh, blv, CORNER.BOTTOM_LEFT)
+            : new Vector(left, top + height)
+    ];
+};
 
 enum CORNER {
     TOP_LEFT = 0,

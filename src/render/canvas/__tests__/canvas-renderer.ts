@@ -30,6 +30,26 @@ const createMockCanvas = (): {canvas: HTMLCanvasElement; fonts: string[]} => {
     return {canvas, fonts};
 };
 
+type Call = [string, unknown[]];
+const recordingCanvas = (calls: Call[]): HTMLCanvasElement => {
+    const ctx = new Proxy({} as {[key: string]: unknown}, {
+        get: (target, prop: string) =>
+            prop in target
+                ? target[prop]
+                : (...args: unknown[]) => {
+                      calls.push([prop, args]);
+                      return {width: 0};
+                  },
+        set: (target, prop: string, value) => {
+            calls.push([prop, [value]]);
+            target[prop] = value;
+            return true;
+        }
+    });
+    return {getContext: () => ctx} as unknown as HTMLCanvasElement;
+};
+const argsOf = (calls: Call[], name: string) => calls.filter(([n]) => n === name).map(([, args]) => args);
+
 const createRenderer = (canvas: HTMLCanvasElement, scale = 1): {context: Context; renderer: CanvasRenderer} => {
     const context = new Context(
         {logging: false, imageTimeout: 0, useCORS: false, allowTaint: false},
@@ -611,26 +631,76 @@ describe('CanvasRenderer', () => {
         });
     });
 
-    describe('inline elements that wrap across lines', () => {
-        type Call = [string, unknown[]];
-        const recordingCanvas = (calls: Call[]): HTMLCanvasElement => {
-            const ctx = new Proxy({} as {[key: string]: unknown}, {
-                get: (target, prop: string) =>
-                    prop in target
-                        ? target[prop]
-                        : (...args: unknown[]) => {
-                              calls.push([prop, args]);
-                              return {width: 0};
-                          },
-                set: (target, prop: string, value) => {
-                    calls.push([prop, [value]]);
-                    target[prop] = value;
-                    return true;
-                }
-            });
-            return {getContext: () => ctx} as unknown as HTMLCanvasElement;
+    describe('box-shadow', () => {
+        const renderShadow = async (style: {[key: string]: string}): Promise<Call[]> => {
+            mockComputedStyle({display: 'block', ...style});
+            const div = document.createElement('div');
+            div.getBoundingClientRect = () => ({left: 10, top: 20, width: 100, height: 60} as DOMRect);
+            const calls: Call[] = [];
+            const {context, renderer} = createRenderer(recordingCanvas(calls));
+            await renderer.renderNodeBackgroundAndBorders(new ElementPaint(new ElementContainer(context, div), null));
+            return calls;
+        };
+        const rounded = {
+            borderTopLeftRadius: '20px',
+            borderTopRightRadius: '20px',
+            borderBottomRightRadius: '20px',
+            borderBottomLeftRadius: '20px'
         };
 
+        // the points of the outline traced after the full-canvas rectangle of mask(), and that rectangle's transform
+        const maskOutline = (calls: Call[]) => {
+            const start = calls.findIndex(([name]) => name === 'setTransform');
+            const restore = calls.findIndex(([name], i) => i > start && name === 'restore');
+            const end = calls.findIndex(([name], i) => i > restore && name === 'closePath');
+            const outline: number[][] = [];
+            calls.slice(restore + 1, end).forEach(([name, args]) => {
+                if (name === 'moveTo' || name === 'lineTo') {
+                    outline.push(args as number[]);
+                } else if (name === 'bezierCurveTo') {
+                    outline.push((args as number[]).slice(4));
+                }
+            });
+            return {transform: start === -1 ? null : calls[start][1], outline};
+        };
+        // shoelace formula: positive for clockwise outlines on a canvas, whose y axis points down
+        const signedArea = (outline: number[][]): number =>
+            outline.reduce((sum, [x, y], i) => {
+                const [nx, ny] = outline[(i + 1) % outline.length];
+                return sum + (x * ny - nx * y);
+            }, 0) / 2;
+
+        it('cuts the rounded border box out of an outer shadow, traced against the canvas rectangle', async () => {
+            const calls = await renderShadow({...rounded, boxShadow: '0 0 0 10px red'});
+            const {transform, outline} = maskOutline(calls);
+            deepStrictEqual(transform, [1, 0, 0, 1, 0, 0]);
+            // the canvas rectangle runs clockwise, so the hole has to run counter-clockwise. The outline joins
+            // the curve end points, so each corner cuts off a triangle of r * r / 2
+            strictEqual(signedArea(outline), -(100 * 60 - 4 * ((20 * 20) / 2)));
+        });
+
+        it('cuts the rounded shadow shape out of an inset shadow', async () => {
+            const calls = await renderShadow({...rounded, boxShadow: 'inset 0 0 0 10px red'});
+            const {outline} = maskOutline(calls);
+            // the border box shrunk by the spread on each side, with 10px corner radii
+            strictEqual(signedArea(outline), -(80 * 40 - 4 * ((10 * 10) / 2)));
+        });
+
+        it('draws the outer shadow shape at its offset, grown by the spread, with rounded corners', async () => {
+            const calls = await renderShadow({...rounded, boxShadow: '5px 7px 0 10px red'});
+            const fills = calls.filter(([name]) => name === 'fill').length;
+            strictEqual(fills, 1);
+            // the shape is drawn off-canvas and only its shadow is moved back onto the canvas
+            deepStrictEqual(argsOf(calls, 'shadowOffsetX').pop(), [10000]);
+            deepStrictEqual(argsOf(calls, 'shadowOffsetY').pop(), [0]);
+            // the top left corner curve starts at (x, y + r) with r = 20 + 10
+            const closePaths = calls.map(([name], i) => (name === 'closePath' ? i : -1)).filter((i) => i >= 0);
+            const shapeStart = calls.findIndex(([name], i) => i > closePaths[1] && name === 'moveTo');
+            deepStrictEqual(calls[shapeStart][1], [10 + 5 - 10 - 10000, 20 + 7 - 10 + 30]);
+        });
+    });
+
+    describe('inline elements that wrap across lines', () => {
         const createSpan = (rects: Array<[number, number, number, number]>): HTMLSpanElement => {
             const span = document.createElement('span');
             span.getBoundingClientRect = () => ({left: 0, top: 0, width: 200, height: 40} as DOMRect);
@@ -683,7 +753,6 @@ describe('CanvasRenderer', () => {
             await renderer.renderNodeBackgroundAndBorders(new ElementPaint(container, null));
             return calls;
         };
-        const argsOf = (calls: Call[], name: string) => calls.filter(([n]) => n === name).map(([, args]) => args);
         // the first point of every traced path, i.e. the top left corner of each painted box
         const pathStarts = (calls: Call[]) => argsOf(calls, 'moveTo');
 

@@ -4,9 +4,15 @@ import {ElementContainer, FLAGS} from '../../dom/element-container';
 import {BORDER_STYLE} from '../../css/property-descriptors/border-style';
 import {CSSParsedDeclaration} from '../../css';
 import {TextContainer} from '../../dom/text-container';
-import {Path, transformPath} from '../path';
+import {Path, reversePath} from '../path';
 import {BACKGROUND_CLIP} from '../../css/property-descriptors/background-clip';
-import {BoundCurves, calculateBorderBoxPath, calculateContentBoxPath, calculatePaddingBoxPath} from '../bound-curves';
+import {
+    BoundCurves,
+    calculateBorderBoxPath,
+    calculateContentBoxPath,
+    calculatePaddingBoxPath,
+    calculateShadowPath
+} from '../bound-curves';
 import {BezierCurve, isBezierCurve} from '../bezier-curve';
 import {Vector} from '../vector';
 import {CSSImageType, CSSURLImage, isLinearGradient, isRadialGradient} from '../../css/types/image';
@@ -630,12 +636,17 @@ export class CanvasRenderer extends Renderer {
 
     mask(paths: Path[]): void {
         this.ctx.beginPath();
+        // the enclosing rectangle covers the whole canvas whatever the current transform is
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.moveTo(0, 0);
         this.ctx.lineTo(this.canvas.width, 0);
         this.ctx.lineTo(this.canvas.width, this.canvas.height);
         this.ctx.lineTo(0, this.canvas.height);
         this.ctx.lineTo(0, 0);
-        this.formatPath(paths.slice(0).reverse());
+        this.ctx.restore();
+        // trace the hole the other way round, curves included, so the non-zero fill rule leaves it out
+        this.formatPath(reversePath(paths));
         this.ctx.closePath();
     }
 
@@ -837,19 +848,20 @@ export class CanvasRenderer extends Renderer {
         const lineBounds = paint.container.lineBounds;
         if (lineBounds.length > 1) {
             for (const fragment of calculateInlineFragments(lineBounds, paint.container.styles)) {
-                await this.renderBoxBackgroundAndBorders(paint.container, fragment.styles, new BoundCurves(fragment));
+                await this.renderBoxBackgroundAndBorders(paint.container, fragment, new BoundCurves(fragment));
             }
             return;
         }
 
-        await this.renderBoxBackgroundAndBorders(paint.container, paint.container.styles, paint.curves);
+        await this.renderBoxBackgroundAndBorders(paint.container, paint.container, paint.curves);
     }
 
     private async renderBoxBackgroundAndBorders(
         container: ElementContainer,
-        styles: CSSParsedDeclaration,
+        box: Pick<ElementContainer, 'styles' | 'bounds'>,
         curves: BoundCurves
     ): Promise<void> {
+        const styles = box.styles;
         const hasBackground = !isTransparent(styles.backgroundColor) || styles.backgroundImage.length;
 
         const borders = [
@@ -885,12 +897,12 @@ export class CanvasRenderer extends Renderer {
                     this.ctx.save();
                     const borderBoxArea = calculateBorderBoxPath(curves);
                     const maskOffset = shadow.inset ? 0 : MASK_OFFSET;
-                    const shadowPaintingArea = transformPath(
-                        borderBoxArea,
-                        -maskOffset + (shadow.inset ? 1 : -1) * shadow.spread.number,
-                        (shadow.inset ? 1 : -1) * shadow.spread.number,
-                        shadow.spread.number * (shadow.inset ? -2 : 2),
-                        shadow.spread.number * (shadow.inset ? -2 : 2)
+                    // the shadow shape follows the rounded corners, with the spread applied to the radii
+                    const shadowPaintingArea = calculateShadowPath(
+                        box,
+                        shadow.offsetX.number - maskOffset,
+                        shadow.offsetY.number,
+                        shadow.inset ? -shadow.spread.number : shadow.spread.number
                     );
 
                     if (shadow.inset) {
@@ -903,8 +915,8 @@ export class CanvasRenderer extends Renderer {
                         this.path(shadowPaintingArea);
                     }
 
-                    this.ctx.shadowOffsetX = shadow.offsetX.number + maskOffset;
-                    this.ctx.shadowOffsetY = shadow.offsetY.number;
+                    this.ctx.shadowOffsetX = maskOffset;
+                    this.ctx.shadowOffsetY = 0;
                     this.ctx.shadowColor = asString(shadow.color);
                     this.ctx.shadowBlur = shadow.blur.number;
                     this.ctx.fillStyle = shadow.inset ? asString(shadow.color) : 'rgba(0,0,0,1)';
